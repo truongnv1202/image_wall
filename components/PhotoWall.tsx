@@ -222,80 +222,91 @@ export function PhotoWall() {
     maskPosition: "center",
   } as CSSProperties;
 
+  const mosaicAspectStyle = {
+    aspectRatio: `${wallAspectW} / ${wallAspectH}`,
+    maxWidth: "100%",
+    maxHeight: "100%",
+    width: "auto",
+    height: "auto",
+  } as const;
+
   return (
     <div className="flex h-full min-h-0 w-full flex-1 items-center justify-center">
+      {/* Khung chứa ảnh 16:9 (trùng stage); lưới ô 3:4 nằm scale vừa bên trong. */}
       <div
         className="relative max-h-full max-w-full shrink-0 overflow-hidden rounded-md border border-[#2a2f3f] bg-[#0b1020] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
         style={{
-          aspectRatio: `${wallAspectW} / ${wallAspectH}`,
+          aspectRatio: "16 / 9",
           width: "auto",
           height: "auto",
           maxWidth: "100%",
           maxHeight: "100%",
         }}
       >
-        <div
-          className={`relative h-full min-h-0 w-full ${waveClass}`}
-          style={
-            {
-              ["--wall-bloom-dur" as string]: `${bloomDurMs}ms`,
-              ["--wall-settle-dur" as string]: `${settleDurMs}ms`,
-              ["--wall-new-entrance-dur" as string]: `${NEW_IMAGE_ENTRANCE_MS}ms`,
-            } as CSSProperties
-          }
-        >
+        <div className="absolute inset-0 flex min-h-0 min-w-0 items-center justify-center">
           <div
-            className="wall-grid grid h-full w-full gap-0"
+            className={`relative min-h-0 min-w-0 ${waveClass}`}
             style={
               {
-                gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
-                gridTemplateRows: `repeat(${gridRows}, minmax(0, 1fr))`,
+                ...mosaicAspectStyle,
+                ["--wall-bloom-dur" as string]: `${bloomDurMs}ms`,
+                ["--wall-settle-dur" as string]: `${settleDurMs}ms`,
+                ["--wall-new-entrance-dur" as string]: `${NEW_IMAGE_ENTRANCE_MS}ms`,
               } as CSSProperties
             }
           >
-            {cells.map((cell) => {
-              const incoming = newImageEntranceUrls.has(cell.src);
-              return (
-                <div
-                  key={cell.key}
-                  className="relative min-h-0 min-w-0 overflow-hidden bg-[#0c1226]"
-                >
+            <div
+              className="wall-grid grid h-full w-full gap-0"
+              style={
+                {
+                  gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
+                  gridTemplateRows: `repeat(${gridRows}, minmax(0, 1fr))`,
+                } as CSSProperties
+              }
+            >
+              {cells.map((cell) => {
+                const incoming = newImageEntranceUrls.has(cell.src);
+                return (
                   <div
-                    className={
-                      incoming
-                        ? "wall-new-img-scale-entrance flex h-full w-full min-h-0 min-w-0 items-center justify-center"
-                        : "flex h-full w-full min-h-0 min-w-0 items-center justify-center"
-                    }
+                    key={cell.key}
+                    className="relative min-h-0 min-w-0 overflow-hidden bg-[#0c1226]"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={cell.src}
-                      alt=""
-                      draggable={false}
+                    <div
                       className={
-                        animating
-                          ? "wall-grid-img-wave h-full w-full object-contain"
-                          : "h-full w-full object-contain transition-[filter] ease-out"
+                        incoming
+                          ? "wall-new-img-scale-entrance flex h-full w-full min-h-0 min-w-0 items-center justify-center"
+                          : "flex h-full w-full min-h-0 min-w-0 items-center justify-center"
                       }
-                      style={
-                        !animating
-                          ? { transitionDuration: `${Math.min(600, crossfadeMs)}ms` }
-                          : undefined
-                      }
-                      loading="lazy"
-                      decoding="async"
-                    />
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={cell.src}
+                        alt=""
+                        draggable={false}
+                        className={
+                          animating
+                            ? "wall-grid-img-wave h-full w-full object-contain"
+                            : "h-full w-full object-contain transition-[filter] ease-out"
+                        }
+                        style={
+                          !animating
+                            ? { transitionDuration: `${Math.min(600, crossfadeMs)}ms` }
+                            : undefined
+                        }
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+            <div
+              aria-hidden
+              className="wall-text-overlay pointer-events-none absolute inset-0 bg-[rgba(4,8,18,0.72)]"
+              style={overlayStyle}
+            />
           </div>
-          {/* Lớp nền tối vector chữ — ảnh lưới phía dưới xếp đủ ô, không phụ thuộc mask ô. */}
-          <div
-            aria-hidden
-            className="wall-text-overlay pointer-events-none absolute inset-0 bg-[rgba(4,8,18,0.72)]"
-            style={overlayStyle}
-          />
         </div>
       </div>
     </div>
