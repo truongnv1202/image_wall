@@ -8,6 +8,8 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      # Trang upload bí mật: https://$DOMAIN/upload/$UPLOAD_PAGE_TOKEN — đặt trong file .env cùng thư mục compose (đã .gitignore). Để trống: không có trang upload, POST /api/upload không yêu cầu token.
+      UPLOAD_PAGE_TOKEN: ${UPLOAD_PAGE_TOKEN:-}
     volumes:
       - pools-data:/app/data
       - uploads-data:/app/public/uploads

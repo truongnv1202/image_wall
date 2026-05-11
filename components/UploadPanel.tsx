@@ -5,7 +5,12 @@ import { useSWRConfig } from "swr";
 
 import type { ImagesPayload } from "@/lib/types";
 
-export function UploadPanel() {
+type UploadPanelProps = {
+  /** Gửi kèm header `x-upload-token` — bắt buộc khi server có `UPLOAD_PAGE_TOKEN` (hoặc dev). */
+  apiUploadToken?: string;
+};
+
+export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
   const { mutate } = useSWRConfig();
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -18,7 +23,9 @@ export function UploadPanel() {
     try {
       const fd = new FormData();
       fd.set("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const headers: HeadersInit = {};
+      if (apiUploadToken) headers["x-upload-token"] = apiUploadToken;
+      const res = await fetch("/api/upload", { method: "POST", body: fd, headers });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         images?: string[];

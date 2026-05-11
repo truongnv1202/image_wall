@@ -4,8 +4,17 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 
 import { prependImageUrl } from "@/lib/imageStore";
+import { getExpectedUploadToken } from "@/lib/uploadPageToken";
 
 export async function POST(request: Request) {
+  const expected = getExpectedUploadToken();
+  if (expected !== null) {
+    const sent = request.headers.get("x-upload-token");
+    if (sent !== expected) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
   const form = await request.formData();
   const file = form.get("file");
 
