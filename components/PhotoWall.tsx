@@ -6,8 +6,8 @@ import useSWR from "swr";
 
 import { notoSans } from "@/app/fonts";
 import { DEFAULT_IMAGE_URLS } from "@/lib/mockImages";
-import { buildTextMask } from "@/lib/textMask";
 import type { ImagesPayload } from "@/lib/types";
+import { wallPhraseMaskDataUrl } from "@/lib/wallPhraseMask";
 import {
   GRID_COLS as DEFAULT_GRID_COLS,
   GRID_ROWS as DEFAULT_GRID_ROWS,
@@ -17,7 +17,7 @@ import type { WallTextPayload } from "@/lib/wallTextStore";
 
 const POLL_MS = 4000;
 const WALL_TEXT_POLL_MS = 10_000;
-/** Ảnh mới: thu scale + overlay vào nền (ms). */
+/** Ảnh mới: thu scale vào ô (ms). */
 const NEW_IMAGE_ENTRANCE_MS = 900;
 
 const fetcher = (url: string) =>
@@ -35,75 +35,32 @@ const fetcherWallText = (url: string) =>
 type WallCell = {
   key: string;
   src: string;
-  isText: boolean;
 };
 
 type PhraseWavePhase = "idle" | "bloom" | "settle";
 
-function buildCells(mask: boolean[][], images: string[], cols: number, rows: number): WallCell[] {
+function buildCells(images: string[], cols: number, rows: number): WallCell[] {
   const safe = images.length > 0 ? images : DEFAULT_IMAGE_URLS;
   const len = safe.length;
   const cells: WallCell[] = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const flatIndex = r * cols + c;
-      const isText = Boolean(mask[r]?.[c]);
       cells.push({
         key: `${r}-${c}`,
         src: safe[flatIndex % len],
-        isText,
       });
     }
   }
   return cells;
 }
 
-/** Trễ sóng theo khoảng cách từ tâm khối chữ (ô chữ sáng dần lan ra). */
-function buildTextWaveDelaysMs(mask: boolean[][], rows: number, cols: number, staggerMax: number) {
-  const map = new Map<string, number>();
-  let sumR = 0;
-  let sumC = 0;
-  let n = 0;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      if (mask[r]?.[c]) {
-        sumR += r;
-        sumC += c;
-        n++;
-      }
-    }
-  }
-  const cy = n > 0 ? sumR / n : rows / 2;
-  const cx = n > 0 ? sumC / n : cols / 2;
-  let maxD = 1;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      if (mask[r]?.[c]) {
-        const d = Math.hypot(c - cx, r - cy);
-        if (d > maxD) maxD = d;
-      }
-    }
-  }
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      if (mask[r]?.[c]) {
-        const d = Math.hypot(c - cx, r - cy);
-        map.set(`${r}-${c}`, (d / maxD) * staggerMax);
-      }
-    }
-  }
-  return map;
-}
-
 export function PhotoWall() {
   const [phraseIndex, setPhraseIndex] = useState(0);
-  const [mask, setMask] = useState<boolean[][] | null>(null);
   const [wavePhase, setWavePhase] = useState<PhraseWavePhase>("idle");
   const [reducedMotion, setReducedMotion] = useState(false);
   const wavePhaseRef = useRef<PhraseWavePhase>("idle");
-  const nextMaskRef = useRef<boolean[][] | null>(null);
   const prevImagesSnapshotRef = useRef<string[] | null>(null);
-  /** `window.setTimeout` trả về `number` trong DOM typings. */
   const pendingEntranceTimersRef = useRef<number[]>([]);
   const [newImageEntranceUrls, setNewImageEntranceUrls] = useState(() => new Set<string>());
 
@@ -135,6 +92,12 @@ export function PhotoWall() {
   const wallAspectW = gridCols * 3;
   const wallAspectH = gridRows * 4;
 
+  const displayPhrase = (phrases[phraseIndex % phrases.length] || WALL_MASK_TEXT).toUpperCase();
+  const phraseMaskUrl = useMemo(
+    () => wallPhraseMaskDataUrl(displayPhrase, notoSans.style.fontFamily),
+    [displayPhrase, notoSans.style.fontFamily],
+  );
+
   useEffect(() => {
     wavePhaseRef.current = wavePhase;
   }, [wavePhase]);
@@ -160,7 +123,6 @@ export function PhotoWall() {
     };
   }, []);
 
-  /** Phát hiện URL mới (upload prepend) để chạy hiệu ứng thu vào nền. */
   useEffect(() => {
     const imgs = data?.images;
     if (!imgs?.length) return;
@@ -218,56 +180,20 @@ export function PhotoWall() {
   }, [rotateMs, phrases.length, reducedMotion]);
 
   useEffect(() => {
-    if (wavePhase !== "idle") return;
-    let cancelled = false;
-    const text = (phrases[phraseIndex % phrases.length] || WALL_MASK_TEXT).toUpperCase();
-    buildTextMask({
-      text,
-      cols: gridCols,
-      rows: gridRows,
-      fontFamily: notoSans.style.fontFamily,
-    }).then((m) => {
-      if (!cancelled) setMask(m);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [phraseIndex, phrases, gridCols, gridRows, wavePhase]);
-
-  useEffect(() => {
     if (wavePhase !== "bloom" || reducedMotion) return;
     const nextIdx = (phraseIndex + 1) % phrases.length;
-    const nextText = (phrases[nextIdx] || WALL_MASK_TEXT).toUpperCase();
     let unmounted = false;
-    nextMaskRef.current = null;
-    const maskPromise = buildTextMask({
-      text: nextText,
-      cols: gridCols,
-      rows: gridRows,
-      fontFamily: notoSans.style.fontFamily,
-    });
-    void maskPromise.then((m) => {
-      if (!unmounted) nextMaskRef.current = m;
-    });
     const t = window.setTimeout(() => {
-      const m = nextMaskRef.current;
-      if (m) {
-        setMask(m);
+      if (!unmounted) {
         setPhraseIndex(nextIdx);
         setWavePhase("settle");
-      } else {
-        void maskPromise.then((m2) => {
-          setMask(m2);
-          setPhraseIndex(nextIdx);
-          setWavePhase("settle");
-        });
       }
     }, bloomTotalMs);
     return () => {
       unmounted = true;
       window.clearTimeout(t);
     };
-  }, [wavePhase, phraseIndex, phrases, gridCols, gridRows, bloomTotalMs, reducedMotion]);
+  }, [wavePhase, phraseIndex, phrases, bloomTotalMs, reducedMotion]);
 
   useEffect(() => {
     if (wavePhase !== "settle" || reducedMotion) return;
@@ -275,21 +201,24 @@ export function PhotoWall() {
     return () => window.clearTimeout(t);
   }, [wavePhase, settleDurMs, reducedMotion]);
 
-  const waveDelays = useMemo(() => {
-    if (!mask) return new Map<string, number>();
-    return buildTextWaveDelaysMs(mask, gridRows, gridCols, staggerMax);
-  }, [mask, gridCols, gridRows, staggerMax]);
-
   const pool = data?.images?.length ? data.images : DEFAULT_IMAGE_URLS;
 
-  const cells = useMemo(() => {
-    if (!mask) return null;
-    return buildCells(mask, pool, gridCols, gridRows);
-  }, [gridCols, gridRows, mask, pool]);
+  const cells = useMemo(() => buildCells(pool, gridCols, gridRows), [gridCols, gridRows, pool]);
 
   const waveClass =
     wavePhase === "bloom" ? "phrase-wave-bloom" : wavePhase === "settle" ? "phrase-wave-settle" : "";
   const animating = wavePhase === "bloom" || wavePhase === "settle";
+
+  const overlayStyle = {
+    WebkitMaskImage: phraseMaskUrl,
+    maskImage: phraseMaskUrl,
+    WebkitMaskSize: "100% 100%",
+    maskSize: "100% 100%",
+    WebkitMaskRepeat: "no-repeat",
+    maskRepeat: "no-repeat",
+    WebkitMaskPosition: "center",
+    maskPosition: "center",
+  } as CSSProperties;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 items-center justify-center">
@@ -304,77 +233,67 @@ export function PhotoWall() {
         }}
       >
         <div
-          className={`grid h-full w-full gap-0 ${waveClass}`}
+          className={`relative h-full min-h-0 w-full ${waveClass}`}
           style={
             {
-              gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
-              gridTemplateRows: `repeat(${gridRows}, minmax(0, 1fr))`,
               ["--wall-bloom-dur" as string]: `${bloomDurMs}ms`,
               ["--wall-settle-dur" as string]: `${settleDurMs}ms`,
               ["--wall-new-entrance-dur" as string]: `${NEW_IMAGE_ENTRANCE_MS}ms`,
             } as CSSProperties
           }
         >
-          {(cells ?? Array.from({ length: gridCols * gridRows })).map((cell, i) => {
-            const isText = Boolean(cell?.isText);
-            const incoming = Boolean(cell && newImageEntranceUrls.has(cell.src));
-            const delayMs = cell ? (waveDelays.get(cell.key) ?? 0) : 0;
-            return (
-              <div
-                key={cell?.key ?? `loading-${i}`}
-                className={`relative min-h-0 min-w-0 overflow-hidden bg-[#0c1226] ${isText ? "wall-cell--text" : ""}`}
-                style={
-                  isText
-                    ? ({ ["--wave-delay" as string]: `${delayMs}ms` } as CSSProperties)
-                    : undefined
-                }
-              >
-                {cell ? (
-                  <>
-                    <div
+          <div
+            className="wall-grid grid h-full w-full gap-0"
+            style={
+              {
+                gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
+                gridTemplateRows: `repeat(${gridRows}, minmax(0, 1fr))`,
+              } as CSSProperties
+            }
+          >
+            {cells.map((cell) => {
+              const incoming = newImageEntranceUrls.has(cell.src);
+              return (
+                <div
+                  key={cell.key}
+                  className="relative min-h-0 min-w-0 overflow-hidden bg-[#0c1226]"
+                >
+                  <div
+                    className={
+                      incoming
+                        ? "wall-new-img-scale-entrance flex h-full w-full min-h-0 min-w-0 items-center justify-center"
+                        : "flex h-full w-full min-h-0 min-w-0 items-center justify-center"
+                    }
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={cell.src}
+                      alt=""
+                      draggable={false}
                       className={
-                        incoming
-                          ? "wall-new-img-scale-entrance flex h-full w-full min-h-0 min-w-0 items-center justify-center"
-                          : "flex h-full w-full min-h-0 min-w-0 items-center justify-center"
+                        animating
+                          ? "wall-grid-img-wave h-full w-full object-contain"
+                          : "h-full w-full object-contain transition-[filter] ease-out"
                       }
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={cell.src}
-                        alt=""
-                        draggable={false}
-                        className={
-                          isText
-                            ? animating
-                              ? "h-full w-full object-contain"
-                              : `h-full w-full object-contain transition-[filter] ease-out brightness-[1.04] contrast-[1.05] saturate-[1.06]`
-                            : "h-full w-full object-contain"
-                        }
-                        style={
-                          isText && !animating
-                            ? { transitionDuration: `${Math.min(600, crossfadeMs)}ms` }
-                            : undefined
-                        }
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    </div>
-                    {/* Nền ảnh mẫu: phủ tối ~70% lên ô ngoài chữ; ô chữ không phủ → ảnh sáng “xuyên lỗ”. Ảnh mới: overlay fade vào cùng lúc thu scale. */}
-                    {!isText ? (
-                      <div
-                        aria-hidden
-                        className={
-                          incoming
-                            ? "wall-new-overlay-entrance pointer-events-none absolute inset-0 bg-[rgba(4,8,18,0.72)]"
-                            : "pointer-events-none absolute inset-0 bg-[rgba(4,8,18,0.72)]"
-                        }
-                      />
-                    ) : null}
-                  </>
-                ) : null}
-              </div>
-            );
-          })}
+                      style={
+                        !animating
+                          ? { transitionDuration: `${Math.min(600, crossfadeMs)}ms` }
+                          : undefined
+                      }
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Lớp nền tối vector chữ — ảnh lưới phía dưới xếp đủ ô, không phụ thuộc mask ô. */}
+          <div
+            aria-hidden
+            className="wall-text-overlay pointer-events-none absolute inset-0 bg-[rgba(4,8,18,0.72)]"
+            style={overlayStyle}
+          />
         </div>
       </div>
     </div>
