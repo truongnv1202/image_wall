@@ -1,10 +1,11 @@
 import type { CSSProperties } from "react";
 
 /**
- * Vùng tường tỷ lệ 4:3, chạy mọi màn hình.
- * Công thức: ưu tiên đủ chiều cao; nếu (cao×4/3) vượt ngang viewport thì co theo chiều ngang.
+ * Vùng hiển thị Full HD 16:9 (tối đa 1920×1080), thu nhỏ vừa viewport.
+ * Chiều cao suy ra từ `aspect-ratio` theo chiều rộng đã chặn.
  */
 export const DISPLAY_REGION_STYLE: CSSProperties = {
-  width: "min(100dvw, calc(100dvh * 4 / 3))",
-  height: "min(100dvh, calc(100dvw * 3 / 4))",
+  aspectRatio: "16 / 9",
+  width: "min(1920px, 100dvw, calc(100dvh * 16 / 9))",
+  height: "auto",
 };

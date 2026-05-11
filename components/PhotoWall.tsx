@@ -11,6 +11,8 @@ import { wallPhraseMaskDataUrl } from "@/lib/wallPhraseMask";
 import {
   GRID_COLS as DEFAULT_GRID_COLS,
   GRID_ROWS as DEFAULT_GRID_ROWS,
+  WALL_CELL_ASPECT_H,
+  WALL_CELL_ASPECT_W,
   WALL_MASK_TEXT,
 } from "@/lib/wallConstants";
 import type { WallTextPayload } from "@/lib/wallTextStore";
@@ -89,8 +91,8 @@ export function PhotoWall() {
   const settleDurMs = Math.round(Math.min(1400, Math.max(780, crossfadeMs * 1.35)));
   const bloomTotalMs = bloomDurMs + staggerMax + 140;
 
-  const wallAspectW = gridCols * 3;
-  const wallAspectH = gridRows * 4;
+  const wallAspectW = gridCols * WALL_CELL_ASPECT_W;
+  const wallAspectH = gridRows * WALL_CELL_ASPECT_H;
 
   const displayPhrase = (phrases[phraseIndex % phrases.length] || WALL_MASK_TEXT).toUpperCase();
   const phraseMaskUrl = useMemo(
@@ -223,7 +225,7 @@ export function PhotoWall() {
   return (
     <div className="flex h-full min-h-0 w-full flex-1 items-center justify-center">
       <div
-        className="relative max-h-full max-w-full overflow-hidden rounded-md border border-[#2a2f3f] bg-[#0b1020] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
+        className="relative max-h-full max-w-full shrink-0 overflow-hidden rounded-md border border-[#2a2f3f] bg-[#0b1020] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
         style={{
           aspectRatio: `${wallAspectW} / ${wallAspectH}`,
           width: "auto",
