@@ -9,8 +9,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-SRC="$DEPLOY_DIR/nginx-host/tlcand.gamegiaoduc.co.conf"
-DOMAIN="${DOMAIN:-tlcand.gamegiaoduc.co}"
+SRC="$DEPLOY_DIR/nginx-host/trienlam.gamegiaoduc.co.conf"
+DOMAIN="${DOMAIN:-trienlam.gamegiaoduc.co}"
 OUT="${NGINX_SITE_OUT:-/etc/nginx/sites-available/$DOMAIN}"
 
 if [[ "$(id -u)" -ne 0 ]]; then

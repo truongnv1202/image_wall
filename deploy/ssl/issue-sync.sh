@@ -8,10 +8,10 @@
 #
 # Cách dùng:
 #   sudo EMAIL=admin@example.com ./deploy/ssl/issue-sync.sh
-#   sudo DOMAIN=tlcand.gamegiaoduc.co EMAIL=... BACKEND=127.0.0.1:5000 ./deploy/ssl/issue-sync.sh
+#   sudo DOMAIN=trienlam.gamegiaoduc.co EMAIL=... BACKEND=127.0.0.1:5000 ./deploy/ssl/issue-sync.sh
 #
 # Biến:
-#   DOMAIN   (mặc định tlcand.gamegiaoduc.co)
+#   DOMAIN   (mặc định trienlam.gamegiaoduc.co)
 #   EMAIL    (bắt buộc — Let's Encrypt)
 #   WEBROOT  (mặc định /var/www/certbot)
 #   BACKEND  (mặc định 127.0.0.1:5000 — upstream Docker nginx trong compose)
@@ -24,7 +24,7 @@ DEPLOY_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=lib-render-nginx.sh
 source "$SCRIPT_DIR/lib-render-nginx.sh"
 
-DOMAIN="${DOMAIN:-tlcand.gamegiaoduc.co}"
+DOMAIN="${DOMAIN:-trienlam.gamegiaoduc.co}"
 WEBROOT="${WEBROOT:-/var/www/certbot}"
 BACKEND="${BACKEND:-127.0.0.1:5000}"
 NGINX_SITE_OUT="${NGINX_SITE_OUT:-/etc/nginx/sites-available/$DOMAIN}"

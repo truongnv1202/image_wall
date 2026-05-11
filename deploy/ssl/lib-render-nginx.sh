@@ -26,7 +26,7 @@ render_nginx_ssl_site_from_template() {
   local DOMAIN="$2"
   local BACKEND="$3"
   local NGINX_SITE_OUT="${4:-/etc/nginx/sites-available/$DOMAIN}"
-  local TEMPLATE="$DEPLOY_DIR/nginx-host/tlcand.gamegiaoduc.co.ssl-sync.template.conf"
+  local TEMPLATE="$DEPLOY_DIR/nginx-host/trienlam.gamegiaoduc.co.ssl-sync.template.conf"
 
   if [[ ! -f "$TEMPLATE" ]]; then
     echo "Không thấy template: $TEMPLATE" >&2

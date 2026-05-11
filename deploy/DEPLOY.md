@@ -1,6 +1,8 @@
 # Hướng dẫn triển khai từng bước
 
-Domain mẫu: **`tlcand.gamegiaoduc.co`**. Thư mục trên server: **`/opt/image_wall`**.
+Domain mẫu: **`trienlam.gamegiaoduc.co`** (tường ảnh triển lãm). Thư mục trên server: **`/opt/image_wall`**.
+
+Nếu trước đó bật **`tlcand.*`** trên Nginx: `sudo rm -f /etc/nginx/sites-enabled/*tlcand*` và trỏ DNS **`trienlam.gamegiaoduc.co`** → IP server, rồi cài file `trienlam.gamegiaoduc.co.conf` như mục 5.
 
 ---
 
@@ -16,8 +18,8 @@ Domain mẫu: **`tlcand.gamegiaoduc.co`**. Thư mục trên server: **`/opt/imag
 
 ## 2. DNS
 
-- Tạo bản ghi **A** (hoặc CNAME hợp lệ): **`tlcand.gamegiaoduc.co` → IP public** của máy chủ.
-- Chờ DNS ổn định (vài phút đến vài giờ). Kiểm tra: `dig +short tlcand.gamegiaoduc.co`.
+- Tạo bản ghi **A** (hoặc CNAME hợp lệ): **`trienlam.gamegiaoduc.co` → IP public** của máy chủ.
+- Chờ DNS ổn định (vài phút đến vài giờ). Kiểm tra: `dig +short trienlam.gamegiaoduc.co`.
 
 ---
 
@@ -80,15 +82,17 @@ Khi trên cùng máy đã có Nginx phục vụ nhiều site, không nên public
    docker compose up -d
    ```
 
-3. Cài file site cho Nginx **trên host** (tên file khớp domain):
+3. Cài file site cho Nginx **trên host** — **bắt buộc** tên đúng **`trienlam.gamegiaoduc.co`** (chữ **uc**, không phải **ich**):
 
    ```bash
-   sudo cp /opt/image_wall/deploy/nginx-host/tlcand.gamegiaoduc.co.conf /etc/nginx/sites-available/
-   sudo ln -sf /etc/nginx/sites-available/tlcand.gamegiaoduc.co.conf /etc/nginx/sites-enabled/
+   sudo cp /opt/image_wall/deploy/nginx-host/trienlam.gamegiaoduc.co.conf /etc/nginx/sites-available/
+   sudo ln -sf /etc/nginx/sites-available/trienlam.gamegiaoduc.co.conf /etc/nginx/sites-enabled/
    sudo nginx -t && sudo systemctl reload nginx
    ```
 
-4. Thử: `http://tlcand.gamegiaoduc.co` (phải trỏ DNS đúng IP).
+   Không dùng file/symlink `*gamegiaodich*` — đó là domain sai, Host header thật sẽ không khớp.
+
+4. Thử: `http://trienlam.gamegiaoduc.co` (phải trỏ DNS đúng IP).
 
 Lúc này host Nginx proxy tới `http://127.0.0.1:5000` (container Nginx trong Docker).
 
@@ -96,7 +100,7 @@ Lúc này host Nginx proxy tới `http://127.0.0.1:5000` (container Nginx trong 
 
 ## 6. HTTPS (Let’s Encrypt) — chọn một cách
 
-Tất cả script nằm trong `/opt/image_wall/deploy/ssl/`. Cần **chạy bằng `sudo`**. Biến thường dùng: `EMAIL=`, tùy chọn `DOMAIN=tlcand.gamegiaoduc.co`, `BACKEND=127.0.0.1:5000`.
+Tất cả script nằm trong `/opt/image_wall/deploy/ssl/`. Cần **chạy bằng `sudo`**. Biến thường dùng: `EMAIL=`, tùy chọn `DOMAIN=trienlam.gamegiaoduc.co`, `BACKEND=127.0.0.1:5000`.
 
 | Cách | Script | Ghi chú ngắn |
 |------|--------|----------------|
@@ -114,7 +118,7 @@ sudo ./deploy/ssl/bootstrap-http-only.sh
 sudo EMAIL=admin@example.com ./deploy/ssl/issue-sync.sh
 ```
 
-Sau khi có cert, file site thường đã gồm **redirect HTTP → HTTPS** và **server 443** (do template `tlcand.gamegiaoduc.co.ssl-sync.template.conf` được render bởi `issue-sync.sh`).
+Sau khi có cert, file site thường đã gồm **redirect HTTP → HTTPS** và **server 443** (do template `trienlam.gamegiaoduc.co.ssl-sync.template.conf` được render bởi `issue-sync.sh`).
 
 **Gia hạn cert:** cấu hình `renew_hook` / `deploy_hook` reload Nginx (xem comment cuối `issue-sync.sh` hoặc `deploy/ssl/renew-reload-nginx.sh`).
 
@@ -123,7 +127,7 @@ Sau khi có cert, file site thường đã gồm **redirect HTTP → HTTPS** và
 ## 7. Kiểm tra sau khi bật HTTPS
 
 ```bash
-curl -I https://tlcand.gamegiaoduc.co
+curl -I https://trienlam.gamegiaoduc.co
 ```
 
 Trên trình duyệt: tải trang, thử **upload ảnh** (body tối đa Nginx thường 25m trong file mẫu).
@@ -146,14 +150,69 @@ Dữ liệu **pools ảnh** và **upload** nằm trong Docker volumes (`pools-da
 
 | Hiện tượng | Hướng xử lý |
 |------------|-------------|
-| `cp: cannot stat ... tlcand.gamegiaoduc.co.conf`: No such file | Repo trên server thiếu thư mục/code mới: `cd /opt/image_wall && git pull`, hoặc copy nguyên file `deploy/nginx-host/tlcand.gamegiaoduc.co.conf` từ máy dev lên server đúng đường dẫn rồi chạy lại `cp` vào `sites-available`. |
-| `nginx: [emerg] open() "... sites-enabled/tlcand..." failed` | Symlink trỏ tới file không tồn tại (do `cp` lỗi). **Sửa gấp:** `sudo rm -f /etc/nginx/sites-enabled/tlcand.gamegiaoduc.co.conf` → `sudo nginx -t && sudo systemctl reload nginx`. Sau khi có file đúng trong `/opt/image_wall/...`, tạo lại symlink như bước 5. |
-| `duplicate upstream "image_wall_backend"` | Hai file trong `sites-enabled` (hoặc một file lặp khối `upstream`) cùng định nghĩa một tên upstream. Repo đã đổi tên thành **`tlcand_gamegiaoduc_upstream`**. Trên server: `git pull`, copy lại file site từ `deploy/nginx-host/`, xóa bản cũ trùng upstream trong `sites-enabled`, chỉ giữ **một** file site cho domain này. |
+| `cp: cannot stat ... trienlam.gamegiaoduc.co.conf`: No such file | Repo trên server thiếu thư mục/code mới: `cd /opt/image_wall && git pull`, hoặc copy nguyên file `deploy/nginx-host/trienlam.gamegiaoduc.co.conf` từ máy dev lên server đúng đường dẫn rồi chạy lại `cp` vào `sites-available`. |
+| `nginx: [emerg] open() "... sites-enabled/trienlam..." failed` | Symlink trỏ tới file không tồn tại (do `cp` lỗi). **Sửa gấp:** `sudo rm -f /etc/nginx/sites-enabled/trienlam.gamegiaoduc.co.conf` → `sudo nginx -t && sudo systemctl reload nginx`. Sau khi có file đúng trong `/opt/image_wall/...`, tạo lại symlink như bước 5. |
+| `duplicate upstream "image_wall_backend"` | Hai file trong `sites-enabled` (hoặc một file lặp khối `upstream`) cùng định nghĩa một tên upstream. Repo đã đổi tên thành **`trienlam_gamegiaoduc_upstream`**. Trên server: `git pull`, copy lại file site từ `deploy/nginx-host/`, xóa bản cũ trùng upstream trong `sites-enabled`, chỉ giữ **một** file site cho domain này. |
 | `curl http://.../.well-known/...` → **301** (nginx Ubuntu) | Khối `:80` đang **redirect toàn bộ** sang HTTPS trước khi serve challenge, hoặc request rơi vào **`default_server`** khác. Sửa: dùng `location ^~ /.well-known/acme-challenge/` + `root /var/www/certbot` (đã cập nhật trong repo), copy lại file site; chạy `sudo nginx -T \| grep -n server_name` và đảm bảo chỉ **một** `server` cho domain này trên `:80` và acme **trước** mọi `return 301 https`. |
 | 502 Bad Gateway | Kiểm tra `docker compose ps`; `curl http://127.0.0.1:5000` trên server. |
-| Sai domain / Host header | Đồng bộ `server_name` với DNS; trong repo đã dùng `tlcand.gamegiaoduc.co`. |
+| Sai domain / Host header | Đồng bộ `server_name` với DNS; trong repo đã dùng `trienlam.gamegiaoduc.co`. |
 | SSL lỗi | `sudo certbot certificates`; DNS phải trỏ đúng IP trước khi xin cert. |
 | Upload lớn bị chặn | Tăng `client_max_body_size` trong file site Nginx host. |
+| HTTP `trienlam` đúng nhưng **HTTPS vẫn ra ARVR / app khác** | Trên **:443** chưa có (hoặc sai) `server_name trienlam.gamegiaoduc.co` proxy về `127.0.0.1:5000`. File `trienlam.gamegiaoduc.co.conf` trong repo **chỉ có cổng 80** — bắt buộc chạy **`issue-sync.sh`** (sau khi certbot thành công) để ghi file site có **cả 443**. Kiểm tra: `sudo nginx -T 2>/dev/null | grep -n trienlam` và tìm khối `listen 443 ssl`. |
+| Nhầm **`gamegiaodich`** vs **`gamegiaoduc`** | Chỉ dùng **`trienlam.gamegiaoduc.co`** (chữ **uc** = giáo dục). Xóa mọi symlink/file **`trienlam.gamegiaodich.co`**. Lệnh: `ls -la /etc/nginx/sites-enabled/ | grep trienlam`. |
+
+---
+
+## 10. Rà soát nhanh (copy trên server)
+
+Chạy lần lượt; mỗi bước phải “đúng” trước khi sang bước sau.
+
+**A — Tên miền & file site (lỗi hay gặp nhất)**
+
+```bash
+# Chỉ được thấy ...gamegiaoduc... — KHÔNG có ...gamegiaodich...
+ls -la /etc/nginx/sites-enabled/ | grep -i trienlam
+sudo nginx -T 2>/dev/null | grep -n "server_name.*trienlam"
+```
+
+Nếu còn `trienlam.gamegiaodich.co`: `sudo rm -f /etc/nginx/sites-enabled/*trienlam*giaodich*` rồi cài lại file đúng như mục 5.
+
+**B — Docker backend (image_wall)**
+
+```bash
+cd /opt/image_wall && docker compose ps
+curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:5000/
+```
+
+Mã **200** (hoặc 3xx nhẹ của Next) là ổn. Nếu connection refused → kiểm tra `docker-compose.yml` có bind **`127.0.0.1:5000:80`** khi dùng Nginx host.
+
+**C — HTTP + Host (Nginx host)**
+
+```bash
+sudo mkdir -p /var/www/certbot/.well-known/acme-challenge
+echo ok | sudo tee /var/www/certbot/.well-known/acme-challenge/ping.txt
+curl -4sS -H "Host: trienlam.gamegiaoduc.co" "http://127.0.0.1/.well-known/acme-challenge/ping.txt"
+```
+
+Phải in **`ok`**. Nếu **301**: xem mục 9 (acme / default_server / file sai tên).
+
+**D — HTTPS có đúng vhost `trienlam` chưa**
+
+```bash
+sudo nginx -T 2>/dev/null | grep -n "listen 443" | head -5
+sudo nginx -T 2>/dev/null | awk '/listen 443/,/^}/' | grep -n "server_name\|trienlam\|trienlam_gamegiaoduc_upstream" | head -30
+```
+
+Phải có khối **`listen 443`** với **`server_name trienlam.gamegiaoduc.co`** và **`proxy_pass`** tới upstream Docker. Nếu **không có** → trình duyệt HTTPS vẫn vào **site mặc định 443** (vd. ARVR). Chạy `sudo EMAIL=... ./deploy/ssl/issue-sync.sh` sau khi cert Let’s Encrypt đã xin được (webroot/standalone/DNS tùy môi trường).
+
+**E — DNS trỏ đúng máy này**
+
+```bash
+dig +short trienlam.gamegiaoduc.co
+curl -4sS "http://trienlam.gamegiaoduc.co/.well-known/acme-challenge/ping.txt"
+```
+
+IP `dig` phải trùng server đang chạy Nginx + Docker. Nếu `curl` qua tên miền khác với `curl` qua `127.0.0.1` + `Host` → kiểm tra **Cloudflare** (DNS only khi xin cert webroot) hoặc DNS trỏ nhầm.
 
 ---
 
@@ -162,6 +221,6 @@ Dữ liệu **pools ảnh** và **upload** nằm trong Docker volumes (`pools-da
 1. DNS → **A** record.  
 2. Clone vào **`/opt/image_wall`** → `docker compose up -d --build`.  
 3. Đổi compose **`127.0.0.1:5000:80`** nếu dùng Nginx host.  
-4. Copy **`deploy/nginx-host/tlcand.gamegiaoduc.co.conf`** → `sites-enabled`.  
+4. Copy **`deploy/nginx-host/trienlam.gamegiaoduc.co.conf`** → `sites-enabled`.  
 5. Chạy một script trong **`deploy/ssl/`** để có HTTPS.  
-6. Kiểm tra `https://tlcand.gamegiaoduc.co`.
+6. Kiểm tra `https://trienlam.gamegiaoduc.co`.
