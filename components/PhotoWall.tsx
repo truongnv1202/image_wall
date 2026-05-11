@@ -226,22 +226,14 @@ export function PhotoWall() {
     aspectRatio: `${wallAspectW} / ${wallAspectH}`,
     maxWidth: "100%",
     maxHeight: "100%",
-    width: "auto",
-    height: "auto",
   } as const;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 items-center justify-center">
-      {/* Khung chứa ảnh 16:9 (trùng stage); lưới ô 3:4 nằm scale vừa bên trong. */}
+      {/* Khung 16:9: cần chiều ngang xác định (w-full) — tránh width/height auto khiến khung 0px và ảnh không vẽ. */}
       <div
-        className="relative max-h-full max-w-full shrink-0 overflow-hidden rounded-md border border-[#2a2f3f] bg-[#0b1020] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
-        style={{
-          aspectRatio: "16 / 9",
-          width: "auto",
-          height: "auto",
-          maxWidth: "100%",
-          maxHeight: "100%",
-        }}
+        className="relative aspect-video w-full max-w-full shrink-0 overflow-hidden rounded-md border border-[#2a2f3f] bg-[#0b1020] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
+        style={{ maxHeight: "100%" }}
       >
         <div className="absolute inset-0 flex min-h-0 min-w-0 items-center justify-center">
           <div
@@ -249,6 +241,10 @@ export function PhotoWall() {
             style={
               {
                 ...mosaicAspectStyle,
+                height: "100%",
+                width: "auto",
+                minWidth: 0,
+                minHeight: 0,
                 ["--wall-bloom-dur" as string]: `${bloomDurMs}ms`,
                 ["--wall-settle-dur" as string]: `${settleDurMs}ms`,
                 ["--wall-new-entrance-dur" as string]: `${NEW_IMAGE_ENTRANCE_MS}ms`,
