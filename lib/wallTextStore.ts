@@ -13,8 +13,6 @@ export type WallTextPayload = {
   gridCols: number;
   /** Số ảnh theo chiều dọc. */
   gridRows: number;
-  /** Số ô ảnh vuông trên tường (lặp `images[i % len]` nếu ít ảnh hơn; ảnh mới ở đầu mảng). */
-  displayImageCount: number;
 };
 
 const DATA_PATH = path.join(process.cwd(), "data", "wall-text.json");
@@ -25,7 +23,6 @@ const DEFAULT: WallTextPayload = {
   phraseCrossfadeMs: 800,
   gridCols: 100,
   gridRows: 60,
-  displayImageCount: 1000,
 };
 
 export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
@@ -60,13 +57,7 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
       : DEFAULT.gridRows;
   gridRows = Math.min(Math.max(6, gridRows), 140);
 
-  let displayImageCount =
-    typeof o.displayImageCount === "number" && Number.isFinite(o.displayImageCount)
-      ? Math.floor(o.displayImageCount)
-      : DEFAULT.displayImageCount;
-  displayImageCount = Math.min(Math.max(1, displayImageCount), 10_000);
-
-  return { phrases, rotateIntervalMs, phraseCrossfadeMs, gridCols, gridRows, displayImageCount };
+  return { phrases, rotateIntervalMs, phraseCrossfadeMs, gridCols, gridRows };
 }
 
 async function ensureFile(): Promise<void> {

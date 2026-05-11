@@ -23,7 +23,6 @@ export function WallTextPanel({ apiUploadToken }: Props) {
   const [crossfadeMs, setCrossfadeMs] = useState(800);
   const [gridCols, setGridCols] = useState(100);
   const [gridRows, setGridRows] = useState(60);
-  const [displayCount, setDisplayCount] = useState(1000);
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -34,7 +33,6 @@ export function WallTextPanel({ apiUploadToken }: Props) {
     setCrossfadeMs(data.phraseCrossfadeMs ?? 800);
     setGridCols(data.gridCols ?? 100);
     setGridRows(data.gridRows ?? 60);
-    setDisplayCount(data.displayImageCount ?? 1000);
   }, [data]);
 
   async function save() {
@@ -51,7 +49,6 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       const phraseCrossfadeMs = Math.min(4000, Math.max(150, Math.round(Number(crossfadeMs)) || 800));
       const nextGridCols = Math.min(240, Math.max(10, Math.floor(Number(gridCols)) || 100));
       const nextGridRows = Math.min(140, Math.max(6, Math.floor(Number(gridRows)) || 60));
-      const displayImageCount = Math.min(10_000, Math.max(1, Math.floor(Number(displayCount)) || 1000));
       const res = await fetch("/api/wall-text", {
         method: "POST",
         headers: {
@@ -64,7 +61,6 @@ export function WallTextPanel({ apiUploadToken }: Props) {
           phraseCrossfadeMs,
           gridCols: nextGridCols,
           gridRows: nextGridRows,
-          displayImageCount,
         } satisfies WallTextPayload),
       });
       const body = (await res.json().catch(() => ({}))) as WallTextPayload & { error?: string };
@@ -121,19 +117,11 @@ export function WallTextPanel({ apiUploadToken }: Props) {
           />
         </label>
       </div>
-
-      <label className="flex flex-col gap-1 text-xs text-zinc-400">
-        <span>Số ô ảnh trên tường (ô vuông, không méo; ảnh ít hơn thì lặp theo thứ tự — mới nhất trước)</span>
-        <input
-          type="number"
-          min={1}
-          max={10000}
-          step={1}
-          value={Number.isFinite(displayCount) ? displayCount : 1000}
-          onChange={(e) => setDisplayCount(Number(e.target.value))}
-          className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
-        />
-      </label>
+      <p className="text-xs text-zinc-500">
+        Mỗi ô trên tường có tỷ lệ khung 3×4 (dọc); ảnh hiển thị vừa khung, không kéo méo (có thể có viền
+        đen nếu ảnh không đúng tỷ lệ). Thiếu ảnh so với số ô thì lặp theo thứ tự, ảnh mới vẫn ở đầu danh
+        sách.
+      </p>
 
       <div className="border-t border-zinc-800 pt-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
         Câu chữ (render ngay trên tường ảnh)

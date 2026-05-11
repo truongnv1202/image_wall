@@ -79,7 +79,9 @@ export function PhotoWall() {
   const crossfadeMs = wallText?.phraseCrossfadeMs ?? 800;
   const gridCols = wallText?.gridCols ?? DEFAULT_GRID_COLS;
   const gridRows = wallText?.gridRows ?? DEFAULT_GRID_ROWS;
-  const displayCount = wallText?.displayImageCount ?? 1000;
+  /** Mỗi ô tường đúng tỷ lệ 3×4 (rộng:cao = 3:4) → tỷ lệ khung tổng = (cols×3):(rows×4). */
+  const wallAspectW = gridCols * 3;
+  const wallAspectH = gridRows * 4;
   const activePhrase = useMemo(
     () => (phrases[phraseIndex % phrases.length] || WALL_MASK_TEXT).toUpperCase(),
     [phraseIndex, phrases],
@@ -112,11 +114,7 @@ export function PhotoWall() {
     };
   }, [activePhrase, gridCols, gridRows]);
 
-  const poolRaw = data?.images?.length ? data.images : DEFAULT_IMAGE_URLS;
-  const pool = useMemo(() => {
-    const n = Math.max(1, Math.min(displayCount, poolRaw.length));
-    return poolRaw.slice(0, n);
-  }, [displayCount, poolRaw]);
+  const pool = data?.images?.length ? data.images : DEFAULT_IMAGE_URLS;
 
   const cells = useMemo(() => {
     if (!mask) return null;
@@ -127,7 +125,7 @@ export function PhotoWall() {
     <div className="flex w-full justify-center px-1 py-2 sm:px-2">
       <div
         className="relative w-full max-w-[min(100vw,2200px)] overflow-hidden rounded-md border border-[#2a2f3f] bg-[#0b1020] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
-        style={{ aspectRatio: `${gridCols} / ${gridRows}` }}
+        style={{ aspectRatio: `${wallAspectW} / ${wallAspectH}` }}
       >
         <div
           className="grid h-full w-full gap-0"
@@ -149,7 +147,7 @@ export function PhotoWall() {
                       src={cell.src}
                       alt=""
                       draggable={false}
-                      className={`h-full w-full object-cover transition-[filter] ease-linear ${
+                      className={`h-full w-full object-contain transition-[filter] ease-linear ${
                         isText
                           ? "brightness-[1.12] contrast-[1.22] saturate-[1.12]"
                           : "brightness-[0.48] contrast-[0.95] saturate-[0.62]"
