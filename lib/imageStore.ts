@@ -1,40 +1,35 @@
 import { promises as fs } from "fs";
 import path from "path";
 
-import type { ColorType, ImagePools } from "@/lib/types";
-import { DEFAULT_POOLS } from "@/lib/mockPools";
+import { DEFAULT_IMAGE_URLS } from "@/lib/mockImages";
+import type { ImagesPayload } from "@/lib/types";
 
-const DATA_PATH = path.join(process.cwd(), "data", "pools.json");
+const DATA_PATH = path.join(process.cwd(), "data", "images.json");
 
 async function ensureFile(): Promise<void> {
   try {
     await fs.access(DATA_PATH);
   } catch {
     await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
-    await fs.writeFile(DATA_PATH, JSON.stringify(DEFAULT_POOLS, null, 2), "utf8");
+    const initial: ImagesPayload = { images: [...DEFAULT_IMAGE_URLS] };
+    await fs.writeFile(DATA_PATH, JSON.stringify(initial, null, 2), "utf8");
   }
 }
 
-export async function readPools(): Promise<ImagePools> {
+export async function readImages(): Promise<ImagesPayload> {
   await ensureFile();
   const raw = await fs.readFile(DATA_PATH, "utf8");
-  return JSON.parse(raw) as ImagePools;
+  const parsed = JSON.parse(raw) as ImagesPayload;
+  if (!Array.isArray(parsed.images) || parsed.images.length === 0) {
+    return { images: [...DEFAULT_IMAGE_URLS] };
+  }
+  return parsed;
 }
 
-export async function prependImage(url: string, colorType: ColorType): Promise<ImagePools> {
-  const pools = await readPools();
-  const key =
-    colorType === "color1"
-      ? "textImagesColor1"
-      : colorType === "color2"
-        ? "textImagesColor2"
-        : colorType === "color3"
-          ? "textImagesColor3"
-          : "bgImages";
-  const next: ImagePools = {
-    ...pools,
-    [key]: [url, ...pools[key]],
-  };
+/** unshift URL — ảnh mới lên đầu mảng. */
+export async function prependImageUrl(url: string): Promise<ImagesPayload> {
+  const { images } = await readImages();
+  const next: ImagesPayload = { images: [url, ...images] };
   await fs.writeFile(DATA_PATH, JSON.stringify(next, null, 2), "utf8");
   return next;
 }

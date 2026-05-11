@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { readPools } from "@/lib/imageStore";
+import { readImages } from "@/lib/imageStore";
 
 export async function GET() {
-  const pools = await readPools();
-  return NextResponse.json(pools);
+  const data = await readImages();
+  return NextResponse.json(data);
 }

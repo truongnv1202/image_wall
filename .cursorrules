@@ -1,40 +1,45 @@
-# Project Context: 3D Content-Aware Photo Mosaic Wall
-Bạn là một chuyên gia lập trình Fullstack. Nhiệm vụ của bạn là xây dựng "Tường ảnh tương tác" (Interactive Photo Wall) mô phỏng màn hình LED 3m x 4m. 
-Điểm đặc biệt: Chữ trên tường ("HÒA BÌNH ĐẸP LẮM") không được tạo ra bằng cách phủ màu CSS. Thay vào đó, chữ được ghép từ **chính những bức ảnh có 3 màu chủ đạo**, các ảnh màu khác sẽ làm nền và bị làm mờ để tạo hiệu ứng 3D nổi bật chữ.
+# Project Context: Interactive Photo Mosaic Wall
+Bạn là một chuyên gia lập trình Fullstack (React/Next.js, TailwindCSS, Node.js). Nhiệm vụ của bạn là xây dựng một trang web hiển thị "Tường ảnh tương tác" (Interactive Photo Wall) giống như một màn hình LED lớn tại triển lãm.
 
 ## 1. Tech Stack Requirements
-- **Frontend:** Next.js (App Router), React, Tailwind CSS, Framer Motion (cho hiệu ứng 3D/Fade).
-- **Backend/API:** Next.js Route Handlers. Cần thư viện trích xuất màu (như `colorthief` hoặc `node-vibrant`) nếu tự động nhận diện màu, HOẶC API nhận trực tiếp tham số `colorCategory` từ client.
-- **Khác:** Sử dụng HTML5 `<canvas>` để tính toán ma trận chữ (text mask).
+- **Frontend:** Next.js (App Router), React, Tailwind CSS.
+- **Backend/API:** Next.js Route Handlers (API Routes).
+- **State Management & Data Fetching:** SWR hoặc React Query để polling dữ liệu ảnh mới liên tục.
+- **Khác:** Sử dụng HTML5 `<canvas>` (chạy ngầm) để tính toán ma trận chữ (text mask).
 
-## 2. Core Features & Data Logic
-### A. Phân loại mảng dữ liệu ảnh (Image Pools)
-Thay vì một mảng ảnh chung, dữ liệu state phải được chia thành 4 mảng (pools) dựa trên màu chủ đạo:
-- `textImagesColor1`: Mảng ảnh màu chủ đạo 1 (VD: Tone Đỏ/Cam).
-- `textImagesColor2`: Mảng ảnh màu chủ đạo 2 (VD: Tone Vàng).
-- `textImagesColor3`: Mảng ảnh màu chủ đạo 3 (VD: Tone Sáng/Trắng).
-- `bgImages`: Mảng ảnh các màu còn lại (dùng làm nền).
+## 2. Core Features & Logic
+### A. Hệ thống Lưới ảnh (The Grid)
+- Tường ảnh mô phỏng kích thước vật lý 3m x 4m (Tỉ lệ 3:4 hoặc 4:3 tùy theo màn hình ngang hay dọc, hãy setup mặc định là màn hình ngang 16:9 nhưng container lưới ảnh chứa theo tỉ lệ mảng).
+- Lưới phải chứa hàng ngàn bức ảnh nhỏ (ví dụ: 100 cột x 60 hàng). Sử dụng CSS Grid hoặc Virtualization (nếu cần tối ưu hiệu năng).
+- **Thuật toán lấp đầy (Looping):** Fetch một mảng `images[]` từ API. Nếu tổng số ô trên lưới (grid size) lớn hơn số lượng ảnh đang có, PHẢI lặp lại ảnh bằng thuật toán modulo: `const currentImage = images[index % images.length]`. Không bao giờ để ô trống.
 
-### B. Logic xếp ảnh vào Lưới (The Grid Placement)
-- Tính toán ma trận chữ "HÒA BÌNH ĐẸP LẮM" bằng `<canvas>` ẩn để biết ô lưới nào thuộc Chữ (`isTextNode = true`), ô nào thuộc Nền (`isTextNode = false`).
-- **Thuật toán rải ảnh & Lặp (Looping):**
-  - Trải qua từng ô grid.
-  - Nếu `isTextNode === true`: Luân phiên chọn ảnh từ 3 mảng `textImagesColor1`, `textImagesColor2`, `textImagesColor3` dựa theo index của ô chữ. Nếu mảng không đủ ảnh, dùng thuật toán modulo (`index % pool.length`) để lặp lại ảnh trong mảng đó.
-  - Nếu `isTextNode === false`: Chọn ảnh từ mảng `bgImages`. Dùng modulo để lặp nếu thiếu.
+### B. Hiệu ứng tạo Chữ từ Ảnh (Text Masking)
+- Chữ hiển thị mặc định: "HÒA BÌNH ĐẸP LẮM" (in hoa, chia làm 2 dòng).
+- **Cách hoạt động:** Dùng một hàm vẽ đoạn text này lên một thẻ `<canvas>` ẩn, sau đó đọc dữ liệu pixel (getImageData). Map tọa độ pixel đó tương ứng với hệ tọa độ của CSS Grid. 
+- Nếu ô lưới nằm đúng vị trí có chữ -> Đánh dấu ô đó là `isTextNode = true`.
 
-### C. Hiệu ứng 3D & Focus (CSS/Tailwind)
-Để tạo cảm giác chữ nổi khối 3D trên nền ảnh:
-- **Với ô `isTextNode === false` (Nền):** Thêm class CSS làm mờ và chìm xuống. VD: `brightness-50 grayscale-[50%] scale-95 z-0`.
-- **Với ô `isTextNode === true` (Chữ):** Thêm class CSS làm rực rỡ và nổi lên. VD: `brightness-110 scale-105 z-10 drop-shadow-2xl shadow-black`.
-- Thêm transition mượt mà để khi ảnh mới được đẩy vào, nó có hiệu ứng pop-up.
+### C. Hiệu ứng 3 màu luân phiên (Color Alternation)
+- Những bức ảnh nằm trong vùng `isTextNode = true` sẽ được phủ một lớp màu (overlay/tint) để làm nổi bật chữ.
+- **Yêu cầu 3 màu:** Mảng màu sắc `const textColors = ['#FFD700', '#FF4500', '#FFFFFF'];` (Vàng, Cam đỏ, Trắng).
+- Sử dụng index của các ô chứa chữ để luân phiên 3 màu này: `const overlayColor = textColors[textNodeIndex % 3]`.
+- Những ảnh không thuộc chữ (background) sẽ bị giảm độ sáng (brightness/opacity) xuống một chút để làm nổi bật phần chữ.
 
-### D. API Upload & Real-time Update
-- API `POST /api/upload`: Nhận file ảnh và một tham số `colorType` (nhận giá trị: `color1`, `color2`, `color3`, `bg`).
-- Khi ảnh mới được upload, unshift (đẩy vào đầu) mảng tương ứng.
-- Frontend dùng SWR hoặc polling `setInterval` để fetch mảng ảnh mới nhất. Khi có ảnh mới vào mảng nào, tường ảnh tự động update các ô đang sử dụng mảng đó, tạo hiệu ứng live-update hoành tráng.
+### D. Upload API & Real-time Updates
+- Viết một API route: `POST /api/upload` nhận multipart/form-data (file ảnh).
+- API lưu ảnh (tạm thời vào thư mục public/uploads hoặc mô phỏng bằng mảng in-memory).
+- Khi có ảnh mới upload thành công, ảnh này phải được chèn vào đầu mảng `images[]` (unshift) và xuất hiện ngay lập tức trên tường ảnh, đẩy các ảnh cũ lùi lại phía sau.
+- Sử dụng cơ chế Polling (ví dụ `setInterval` gọi `GET /api/images` mỗi 3-5 giây) để cập nhật ảnh mới trên màn hình lớn mà không cần reload trang.
 
-## 3. Step-by-Step Execution Plan cho Cursor
-- **Bước 1: UI & Text Mask:** Khởi tạo Next.js. Viết hàm Canvas đọc text "HÒA BÌNH ĐẸP LẮM" thành mảng boolean 2D. Render một CSS Grid cơ bản dựa trên mảng này.
-- **Bước 2: Mock Data & Placement Logic:** Tạo 4 mảng mock data chứa URL ảnh (đại diện cho 4 pool màu). Viết logic render: ô chữ thì bốc ảnh luân phiên từ 3 pool màu, ô nền thì bốc từ pool nền. Đảm bảo logic lặp modulo hoạt động không bị lỗi rỗng (fallback xử lý mảng rỗng).
-- **Bước 3: Styling 3D:** Áp dụng TailwindCSS để các ảnh thuộc chữ to hơn (scale), sáng hơn, có shadow, còn ảnh nền tối đi, nhỏ lại một chút.
-- **Bước 4: API & State:** Xây dựng API route để nhận ảnh. Cấu hình polling ở frontend để tự động chèn ảnh mới nhất lên tường đúng vào mảng màu của nó.
+## 3. UI/UX "Vibe"
+- Giao diện Dark Mode (nền màu đen/xám đậm).
+- Các bức ảnh xếp sát nhau, không có khoảng trống (gap = 0).
+- Chữ hiện lên rõ ràng, hoành tráng, mang cảm giác nghệ thuật, triển lãm.
+- Thêm hiệu ứng transition nhẹ (fade-in) khi có một bức ảnh mới được đẩy vào lưới.
+
+## 4. Step-by-Step Execution Plan (Yêu cầu Cursor thực hiện theo thứ tự)
+- Bước 1: Setup cấu trúc Next.js và component lưới cơ bản (mock data mảng 10 URL ảnh). Test tính năng lặp ảnh (modulo) cho đầy màn hình.
+- Bước 2: Viết utility function dùng Canvas để chuyển đổi text "HÒA BÌNH ĐẸP LẮM" thành ma trận boolean 2D (0 và 1).
+- Bước 3: Áp dụng ma trận chữ vào lưới ảnh, thêm overlay 3 màu luân phiên cho các ô tạo thành chữ. Tinh chỉnh CSS để chữ nổi bật trên nền.
+- Bước 4: Xây dựng API `/api/upload` và `/api/images`. Tích hợp tính năng tự động cập nhật ảnh mới vào lưới.
+
+Hãy bắt đầu với Bước 1. Viết code sạch, chia component rõ ràng.

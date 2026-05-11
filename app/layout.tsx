@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { notoSans } from "@/app/fonts";
+import { SWRProvider } from "@/components/SWRProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tường ảnh Hòa Bình",
-  description: "Tường LED ảnh — chữ HÒA BÌNH ĐẸP LẮM từ ảnh màu chủ đạo",
+  title: "Tường ảnh tương tác — Triển lãm",
+  description: "Lưới LED ảnh, mask canvas chữ HÒA BÌNH ĐẸP LẮM, polling ảnh mới",
 };
 
 export default function RootLayout({
@@ -29,7 +30,9 @@ export default function RootLayout({
       lang="vi"
       className={`${geistSans.variable} ${geistMono.variable} ${notoSans.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <SWRProvider>{children}</SWRProvider>
+      </body>
     </html>
   );
 }

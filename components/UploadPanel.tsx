@@ -1,18 +1,12 @@
 "use client";
 
 import { useState, type ChangeEvent } from "react";
+import { useSWRConfig } from "swr";
 
-import type { ColorType } from "@/lib/types";
-
-const OPTIONS: { value: ColorType; label: string }[] = [
-  { value: "color1", label: "Chữ — tông 1 (đỏ/cam)" },
-  { value: "color2", label: "Chữ — tông 2 (vàng)" },
-  { value: "color3", label: "Chữ — tông 3 (sáng/trắng)" },
-  { value: "bg", label: "Nền" },
-];
+import type { ImagesPayload } from "@/lib/types";
 
 export function UploadPanel() {
-  const [colorType, setColorType] = useState<ColorType>("color1");
+  const { mutate } = useSWRConfig();
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -24,14 +18,23 @@ export function UploadPanel() {
     try {
       const fd = new FormData();
       fd.set("file", file);
-      fd.set("colorType", colorType);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        images?: string[];
+      };
       if (!res.ok) {
         setStatus(typeof data.error === "string" ? data.error : "Upload thất bại");
         return;
       }
-      setStatus("Đã thêm ảnh — tường sẽ cập nhật khi polling lấy pools mới.");
+      if (Array.isArray(data.images)) {
+        await mutate("/api/images", { images: data.images } satisfies ImagesPayload, {
+          revalidate: false,
+        });
+      } else {
+        await mutate("/api/images");
+      }
+      setStatus("Đã thêm ảnh lên đầu tường.");
     } catch {
       setStatus("Lỗi mạng");
     } finally {
@@ -41,23 +44,12 @@ export function UploadPanel() {
   }
 
   return (
-    <div className="flex w-full max-w-3xl flex-col gap-3 rounded-xl border border-white/10 bg-zinc-900/50 p-4 text-sm text-zinc-200">
-      <div className="font-medium text-zinc-100">Thử upload (API)</div>
-      <label className="flex flex-col gap-1">
-        <span className="text-zinc-400">Loại màu / pool</span>
-        <select
-          className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2"
-          value={colorType}
-          onChange={(e) => setColorType(e.target.value as ColorType)}
-        >
-          {OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-500 disabled:opacity-50">
+    <div className="flex w-full max-w-[min(100vw,calc((100vh-10rem)*100/60))] flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-sm text-zinc-200">
+      <div className="font-medium text-zinc-100">Gửi ảnh lên tường</div>
+      <p className="text-xs text-zinc-500">
+        Ảnh được chèn vào đầu mảng; lưới cập nhật ngay và qua polling ~{4}s.
+      </p>
+      <label className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-emerald-700 px-4 py-2.5 font-medium text-white hover:bg-emerald-600 disabled:opacity-50">
         {busy ? "Đang tải…" : "Chọn ảnh"}
         <input
           type="file"
