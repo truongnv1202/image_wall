@@ -42,7 +42,6 @@ function buildCells(mask: boolean[][], images: string[], cols: number, rows: num
   const safe = images.length > 0 ? images : DEFAULT_IMAGE_URLS;
   const len = safe.length;
   const cells: WallCell[] = [];
-  let textOrdinal = 0;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const flatIndex = r * cols + c;
@@ -51,7 +50,6 @@ function buildCells(mask: boolean[][], images: string[], cols: number, rows: num
         key: `${r}-${c}`,
         src: safe[flatIndex % len],
         isText,
-        textOrdinal: isText ? textOrdinal++ : -1,
       });
     }
   }
