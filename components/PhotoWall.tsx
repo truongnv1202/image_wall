@@ -15,7 +15,7 @@ import {
   STRIP_TILE_H,
   STRIP_TILE_W,
 } from "@/lib/wallStripConstants";
-import { wallPhraseMaskDataUrl } from "@/lib/wallPhraseMask";
+import { WallWatermark } from "@/components/WallWatermark";
 import { WALL_MASK_TEXT } from "@/lib/wallConstants";
 import type { WallTextPayload } from "@/lib/wallTextStore";
 
@@ -107,11 +107,6 @@ export function PhotoWall() {
   }, [rows, tilesPerHalf, pool]);
 
   const displayPhrase = (phrases[phraseIndex % phrases.length] || WALL_MASK_TEXT).toUpperCase();
-  const phraseMaskUrl = useMemo(
-    () => wallPhraseMaskDataUrl(displayPhrase, notoSans.style.fontFamily),
-    [displayPhrase, notoSans.style.fontFamily],
-  );
-
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     const apply = () => setReducedMotion(mq.matches);
@@ -202,17 +197,6 @@ export function PhotoWall() {
     return () => ro.disconnect();
   }, []);
 
-  const overlayStyle = {
-    WebkitMaskImage: phraseMaskUrl,
-    maskImage: phraseMaskUrl,
-    WebkitMaskSize: "100% 100%",
-    maskSize: "100% 100%",
-    WebkitMaskRepeat: "no-repeat",
-    maskRepeat: "no-repeat",
-    WebkitMaskPosition: "center",
-    maskPosition: "center",
-  } as CSSProperties;
-
   const marqueeStyle = {
     ["--wall-marquee-dur" as string]: `${marqueeDurSec}s`,
   } as CSSProperties;
@@ -266,10 +250,10 @@ export function PhotoWall() {
           ))}
         </div>
 
-        <div
-          aria-hidden
-          className="wall-text-overlay pointer-events-none absolute inset-0 z-[1] bg-[rgba(4,8,18,0.72)]"
-          style={overlayStyle}
+        <WallWatermark
+          phrase={displayPhrase}
+          crossfadeMs={wallText?.phraseCrossfadeMs ?? 800}
+          fontClassName={notoSans.className}
         />
 
         {hero ? (

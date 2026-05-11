@@ -124,10 +124,10 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       </p>
 
       <div className="border-t border-zinc-800 pt-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
-        Câu chữ (render ngay trên tường ảnh)
+        Câu chữ (watermark giữa tường ảnh)
       </div>
       <p className="text-xs text-zinc-500">
-        Xuống dòng trong câu = Enter. Có từ 2 câu trở lên: xoay theo thời gian hiển thị; hiệu ứng mờ chuyển câu chỉnh bằng millisecond bên dưới.
+        Trong một ô: Enter để tách nhiều dòng (ví dụ hai dòng lớn như mẫu). Nhiều ô câu: xoay vòng theo giây cấu hình; độ mờ khi đổi câu chỉnh millisecond bên dưới.
       </p>
 
       <div className="flex flex-col gap-2">
