@@ -23,6 +23,9 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
     try {
       const fd = new FormData();
       fd.set("file", file);
+      if (apiUploadToken) {
+        fd.set("uploadToken", apiUploadToken);
+      }
       const headers: HeadersInit = {};
       if (apiUploadToken) headers["x-upload-token"] = apiUploadToken;
       const res = await fetch("/api/upload", { method: "POST", body: fd, headers });

@@ -9,12 +9,17 @@ import { rejectWithoutUploadToken } from "@/lib/uploadAuth";
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
+function formUploadToken(form: FormData): string | null {
+  const v = form.get("uploadToken");
+  return typeof v === "string" ? v.trim() : null;
+}
+
 export async function POST(request: Request) {
   try {
-    const denied = rejectWithoutUploadToken(request);
+    const form = await request.formData();
+    const denied = rejectWithoutUploadToken(request, formUploadToken(form));
     if (denied) return denied;
 
-    const form = await request.formData();
     const file = form.get("file");
 
     if (!(file instanceof Blob) || file.size === 0) {
