@@ -303,7 +303,7 @@ npm install
 npm run dev
 ```
 
-Mở `http://localhost:3000`.
+Mở `http://localhost:5000` (dev mặc định cổng 5000). Production: `https://trienlam.gamegiaoduc.co`.
 
 ---
 
