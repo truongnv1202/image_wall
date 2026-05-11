@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import sharp from "sharp";
 
 import { prependImageUrl } from "@/lib/imageStore";
+import { normalizeUploadImage } from "@/lib/normalizeUploadImage";
 import { rejectWithoutUploadToken } from "@/lib/uploadAuth";
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
@@ -32,21 +32,19 @@ export async function POST(request: Request) {
     await mkdir(uploadDir, { recursive: true });
 
     const input = Buffer.from(await file.arrayBuffer());
-    let out: Buffer;
-    try {
-      out = await sharp(input).rotate().jpeg({ quality: 88 }).toBuffer();
-    } catch {
+    const normalized = await normalizeUploadImage(input);
+    if (!normalized) {
       return NextResponse.json(
         {
           error:
-            "Không đọc được ảnh. Hãy dùng JPG, PNG, WebP, GIF hoặc định dạng mà trình duyệt thường mở được (một số máy gửi HEIC cần đổi sang JPG trước).",
+            "Không đọc được ảnh. Hãy gửi JPG, PNG, WebP hoặc GIF (HEIC: đổi sang JPG trước khi gửi).",
         },
         { status: 400 },
       );
     }
 
-    const name = `${randomUUID()}.jpg`;
-    await writeFile(path.join(uploadDir, name), out);
+    const name = `${randomUUID()}${normalized.ext}`;
+    await writeFile(path.join(uploadDir, name), normalized.buffer);
 
     const publicUrl = `/uploads/${name}`;
     const data = await prependImageUrl(publicUrl);
@@ -57,7 +55,7 @@ export async function POST(request: Request) {
     const code = err && typeof err === "object" && "code" in err ? String((err as { code?: string }).code) : "";
     const hint =
       code === "EACCES" || code === "EPERM"
-        ? "Không ghi được trên đĩa (quyền thư mục data/uploads)."
+        ? "Không ghi được trên đĩa (quyền thư mục /app/data hoặc /app/public/uploads)."
         : message;
     console.error("[upload]", code || message, err);
     return NextResponse.json({ error: hint }, { status: 500 });

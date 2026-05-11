@@ -36,7 +36,9 @@ export async function prependImageUrl(url: string): Promise<ImagesPayload> {
   prependChain = new Promise<void>((resolve) => {
     done = resolve;
   });
-  await prev;
+  await prev.catch((e) => {
+    console.error("[imageStore] prepend queue hỏng, bỏ qua lỗi trước:", e);
+  });
   try {
     const { images } = await readImages();
     const deduped = images.filter((u) => u !== url);
