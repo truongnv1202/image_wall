@@ -22,7 +22,7 @@ source "$SCRIPT_DIR/lib-render-nginx.sh"
 DOMAIN="${DOMAIN:-trienlam.gamegiaoduc.co}"
 EMAIL="${EMAIL:?Đặt EMAIL=you@domain.tld}"
 BACKEND="${BACKEND:-127.0.0.1:5000}"
-NGINX_SITE_OUT="${NGINX_SITE_OUT:-/etc/nginx/sites-available/$DOMAIN}"
+NGINX_SITE_OUT="${NGINX_SITE_OUT:-/etc/nginx/sites-available/${DOMAIN}.conf}"
 
 STOP_CMD="${STOP_CMD:-systemctl stop nginx}"
 START_CMD="${START_CMD:-systemctl start nginx}"

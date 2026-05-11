@@ -25,7 +25,7 @@ render_nginx_ssl_site_from_template() {
   local DEPLOY_DIR="$1"
   local DOMAIN="$2"
   local BACKEND="$3"
-  local NGINX_SITE_OUT="${4:-/etc/nginx/sites-available/$DOMAIN}"
+  local NGINX_SITE_OUT="${4:-/etc/nginx/sites-available/${DOMAIN}.conf}"
   local TEMPLATE="$DEPLOY_DIR/nginx-host/trienlam.gamegiaoduc.co.ssl-sync.template.conf"
 
   if [[ ! -f "$TEMPLATE" ]]; then

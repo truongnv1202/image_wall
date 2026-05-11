@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SRC="$DEPLOY_DIR/nginx-host/trienlam.gamegiaoduc.co.conf"
 DOMAIN="${DOMAIN:-trienlam.gamegiaoduc.co}"
-OUT="${NGINX_SITE_OUT:-/etc/nginx/sites-available/$DOMAIN}"
+OUT="${NGINX_SITE_OUT:-/etc/nginx/sites-available/${DOMAIN}.conf}"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Chạy bằng sudo." >&2

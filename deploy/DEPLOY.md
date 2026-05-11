@@ -290,6 +290,7 @@ dig +short "$DOMAIN"
 | Certbot **unauthorized** + Cloudflare | Tạm **DNS only**; hoặc DNS-01; hoặc ngoại lệ `/.well-known` |
 | `curl` challenge **301** | Đảm bảo `server_name` đúng `DOMAIN`; có `location ^~ /.well-known/acme-challenge/` trước mọi `return 301 https`; không trùng file sai `*giaodich*` |
 | HTTPS vẫn ra app khác | `sudo nginx -T | grep -n listen` — phải có `listen 443` + `server_name` đúng + `proxy_pass` sau `issue-sync.sh` |
+| `issue-sync.sh` chạy xong mà 443 không đổi | Bản cũ ghi nhầm `/etc/nginx/sites-available/$DOMAIN` (không `.conf`). `git pull` rồi chạy lại; có thể `sudo rm -f /etc/nginx/sites-available/trienlam.gamegiaoduc.co` (file không đuôi `.conf` nếu còn sót) |
 | Upload lớn | Tăng `client_max_body_size` trong file site Nginx |
 | `duplicate upstream` | Hai file cùng định nghĩa một `upstream` — chỉ giữ một file site cho domain; upstream trong repo: `trienlam_gamegiaoduc_upstream` |
 

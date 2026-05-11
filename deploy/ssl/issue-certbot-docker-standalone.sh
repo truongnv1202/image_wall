@@ -19,7 +19,7 @@ source "$SCRIPT_DIR/lib-render-nginx.sh"
 DOMAIN="${DOMAIN:-trienlam.gamegiaoduc.co}"
 EMAIL="${EMAIL:?Đặt EMAIL=}"
 BACKEND="${BACKEND:-127.0.0.1:5000}"
-NGINX_SITE_OUT="${NGINX_SITE_OUT:-/etc/nginx/sites-available/$DOMAIN}"
+NGINX_SITE_OUT="${NGINX_SITE_OUT:-/etc/nginx/sites-available/${DOMAIN}.conf}"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Chạy bằng sudo (cần mount /etc/letsencrypt)." >&2

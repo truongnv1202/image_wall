@@ -15,7 +15,7 @@
 #   EMAIL    (bắt buộc — Let's Encrypt)
 #   WEBROOT  (mặc định /var/www/certbot)
 #   BACKEND  (mặc định 127.0.0.1:5000 — upstream Docker nginx trong compose)
-#   NGINX_SITE_OUT — file ghi ra (mặc định /etc/nginx/sites-available/$DOMAIN)
+#   NGINX_SITE_OUT — file ghi ra (mặc định /etc/nginx/sites-available/${DOMAIN}.conf)
 
 set -euo pipefail
 
@@ -27,7 +27,7 @@ source "$SCRIPT_DIR/lib-render-nginx.sh"
 DOMAIN="${DOMAIN:-trienlam.gamegiaoduc.co}"
 WEBROOT="${WEBROOT:-/var/www/certbot}"
 BACKEND="${BACKEND:-127.0.0.1:5000}"
-NGINX_SITE_OUT="${NGINX_SITE_OUT:-/etc/nginx/sites-available/$DOMAIN}"
+NGINX_SITE_OUT="${NGINX_SITE_OUT:-/etc/nginx/sites-available/${DOMAIN}.conf}"
 
 if [[ "${EMAIL:-}" == "" ]]; then
   echo "Thiếu EMAIL (Let's Encrypt). Ví dụ: sudo EMAIL=you@domain.tld $0" >&2
