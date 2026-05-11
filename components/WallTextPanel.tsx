@@ -21,6 +21,8 @@ export function WallTextPanel({ apiUploadToken }: Props) {
   const [phrases, setPhrases] = useState<string[]>([]);
   const [rotateSec, setRotateSec] = useState(60);
   const [crossfadeMs, setCrossfadeMs] = useState(800);
+  const [gridCols, setGridCols] = useState(100);
+  const [gridRows, setGridRows] = useState(60);
   const [displayCount, setDisplayCount] = useState(1000);
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -30,6 +32,8 @@ export function WallTextPanel({ apiUploadToken }: Props) {
     setPhrases([...data.phrases]);
     setRotateSec(Math.round(data.rotateIntervalMs / 1000));
     setCrossfadeMs(data.phraseCrossfadeMs ?? 800);
+    setGridCols(data.gridCols ?? 100);
+    setGridRows(data.gridRows ?? 60);
     setDisplayCount(data.displayImageCount ?? 1000);
   }, [data]);
 
@@ -45,6 +49,8 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       }
       const rotateIntervalMs = Math.max(0, Math.round(rotateSec * 1000));
       const phraseCrossfadeMs = Math.min(4000, Math.max(150, Math.round(Number(crossfadeMs)) || 800));
+      const nextGridCols = Math.min(240, Math.max(10, Math.floor(Number(gridCols)) || 100));
+      const nextGridRows = Math.min(140, Math.max(6, Math.floor(Number(gridRows)) || 60));
       const displayImageCount = Math.min(10_000, Math.max(1, Math.floor(Number(displayCount)) || 1000));
       const res = await fetch("/api/wall-text", {
         method: "POST",
@@ -56,6 +62,8 @@ export function WallTextPanel({ apiUploadToken }: Props) {
           phrases: trimmed,
           rotateIntervalMs,
           phraseCrossfadeMs,
+          gridCols: nextGridCols,
+          gridRows: nextGridRows,
           displayImageCount,
         } satisfies WallTextPayload),
       });
@@ -87,6 +95,33 @@ export function WallTextPanel({ apiUploadToken }: Props) {
     <div className="flex w-full max-w-xl flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-sm text-zinc-200">
       <div className="font-medium text-zinc-100">Cấu hình tường</div>
 
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
+          <span>Số ảnh theo chiều ngang</span>
+          <input
+            type="number"
+            min={10}
+            max={240}
+            step={1}
+            value={Number.isFinite(gridCols) ? gridCols : 100}
+            onChange={(e) => setGridCols(Number(e.target.value))}
+            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
+          <span>Số ảnh theo chiều dọc</span>
+          <input
+            type="number"
+            min={6}
+            max={140}
+            step={1}
+            value={Number.isFinite(gridRows) ? gridRows : 60}
+            onChange={(e) => setGridRows(Number(e.target.value))}
+            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+          />
+        </label>
+      </div>
+
       <label className="flex flex-col gap-1 text-xs text-zinc-400">
         <span>Số ô ảnh trên tường (ô vuông, không méo; ảnh ít hơn thì lặp theo thứ tự — mới nhất trước)</span>
         <input
@@ -101,7 +136,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       </label>
 
       <div className="border-t border-zinc-800 pt-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
-        Câu chữ (phía trên lưới)
+        Câu chữ (render ngay trên tường ảnh)
       </div>
       <p className="text-xs text-zinc-500">
         Xuống dòng trong câu = Enter. Có từ 2 câu trở lên: xoay theo thời gian hiển thị; hiệu ứng mờ chuyển câu chỉnh bằng millisecond bên dưới.

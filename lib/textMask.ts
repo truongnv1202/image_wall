@@ -41,22 +41,22 @@ export async function buildTextMask({
     .filter((l) => l.length > 0);
   const lineBlocks = lines.length ? lines : [" "];
 
-  let fontSize = Math.floor(canvas.height * 0.28);
+  let fontSize = Math.floor(canvas.height * 0.31);
   while (fontSize >= 8) {
-    ctx.font = `700 ${fontSize}px ${fontFamily}`;
+    ctx.font = `800 ${fontSize}px ${fontFamily}`;
     const maxLineWidth = Math.max(
       ...lineBlocks.map((line) => ctx.measureText(line).width),
       1
     );
-    const blockHeight = fontSize * (lineBlocks.length * 1.15 - 0.15);
+    const blockHeight = fontSize * (lineBlocks.length * 1.1 - 0.1);
     const fitsWidth = maxLineWidth <= canvas.width * 0.92;
     const fitsHeight = blockHeight <= canvas.height * 0.88;
     if (fitsWidth && fitsHeight) break;
     fontSize -= 2;
   }
 
-  ctx.font = `700 ${fontSize}px ${fontFamily}`;
-  const lineGap = fontSize * 1.15;
+  ctx.font = `800 ${fontSize}px ${fontFamily}`;
+  const lineGap = fontSize * 1.1;
   const totalH = lineGap * (lineBlocks.length - 1) + fontSize;
   let startY = (canvas.height - totalH) / 2 + fontSize / 2;
   for (let i = 0; i < lineBlocks.length; i++) {

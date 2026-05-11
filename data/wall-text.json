@@ -4,5 +4,7 @@
   ],
   "rotateIntervalMs": 60000,
   "phraseCrossfadeMs": 800,
+  "gridCols": 100,
+  "gridRows": 60,
   "displayImageCount": 1000
 }

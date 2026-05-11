@@ -9,6 +9,10 @@ export type WallTextPayload = {
   rotateIntervalMs: number;
   /** Độ dài hiệu ứng mờ dần khi đổi câu (ms). */
   phraseCrossfadeMs: number;
+  /** Số ảnh theo chiều ngang. */
+  gridCols: number;
+  /** Số ảnh theo chiều dọc. */
+  gridRows: number;
   /** Số ô ảnh vuông trên tường (lặp `images[i % len]` nếu ít ảnh hơn; ảnh mới ở đầu mảng). */
   displayImageCount: number;
 };
@@ -19,6 +23,8 @@ const DEFAULT: WallTextPayload = {
   phrases: [WALL_MASK_TEXT],
   rotateIntervalMs: 60_000,
   phraseCrossfadeMs: 800,
+  gridCols: 100,
+  gridRows: 60,
   displayImageCount: 1000,
 };
 
@@ -42,13 +48,25 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
       : DEFAULT.phraseCrossfadeMs;
   phraseCrossfadeMs = Math.min(Math.max(150, phraseCrossfadeMs), 4000);
 
+  let gridCols =
+    typeof o.gridCols === "number" && Number.isFinite(o.gridCols)
+      ? Math.floor(o.gridCols)
+      : DEFAULT.gridCols;
+  gridCols = Math.min(Math.max(10, gridCols), 240);
+
+  let gridRows =
+    typeof o.gridRows === "number" && Number.isFinite(o.gridRows)
+      ? Math.floor(o.gridRows)
+      : DEFAULT.gridRows;
+  gridRows = Math.min(Math.max(6, gridRows), 140);
+
   let displayImageCount =
     typeof o.displayImageCount === "number" && Number.isFinite(o.displayImageCount)
       ? Math.floor(o.displayImageCount)
       : DEFAULT.displayImageCount;
   displayImageCount = Math.min(Math.max(1, displayImageCount), 10_000);
 
-  return { phrases, rotateIntervalMs, phraseCrossfadeMs, displayImageCount };
+  return { phrases, rotateIntervalMs, phraseCrossfadeMs, gridCols, gridRows, displayImageCount };
 }
 
 async function ensureFile(): Promise<void> {
