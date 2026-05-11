@@ -31,21 +31,41 @@ export type WallCell = {
   overlayHex: string | null;
 };
 
+function countTextCells(mask: boolean[][]): number {
+  let n = 0;
+  for (const row of mask) {
+    for (const cell of row) {
+      if (cell) n++;
+    }
+  }
+  return n;
+}
+
+/** Ô chữ: luân phiên từ đầu mảng (ảnh mới prepend nổi bật). Ô nền: phase lệch để ưu tiên ảnh “xa đầu mảng” hơn. */
 function buildCells(mask: boolean[][], images: string[]): WallCell[] {
   const safe = images.length > 0 ? images : DEFAULT_IMAGE_URLS;
+  const len = safe.length;
+  const textCellCount = countTextCells(mask);
+  const bgPhase = len > 1 ? Math.min(len - 1, Math.max(4, Math.floor(len * 0.12))) : 0;
+
   const flat: WallCell[] = [];
   let textOrdinal = 0;
+  let bgOrdinal = 0;
   for (let r = 0; r < mask.length; r++) {
     for (let c = 0; c < mask[r].length; c++) {
       const flatIndex = r * GRID_COLS + c;
       const isText = mask[r][c];
-      const src = safe[flatIndex % safe.length];
+      let src: string;
       let overlayHex: string | null = null;
       let textIdx = -1;
       if (isText) {
         textIdx = textOrdinal;
         overlayHex = TEXT_OVERLAY_COLORS[textOrdinal % TEXT_OVERLAY_COLORS.length];
+        src = safe[textOrdinal % len];
         textOrdinal += 1;
+      } else {
+        src = safe[(bgPhase + bgOrdinal + textCellCount) % len];
+        bgOrdinal += 1;
       }
       flat.push({
         key: `${r}-${c}`,
@@ -105,7 +125,7 @@ export function PhotoWall() {
         style={{ aspectRatio: `${GRID_COLS} / ${GRID_ROWS}` }}
       >
         <div
-          className="grid h-full w-full gap-0"
+          className="isolate grid h-full w-full gap-0"
           style={{
             gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))`,
             gridTemplateRows: `repeat(${GRID_ROWS}, minmax(0, 1fr))`,
@@ -114,7 +134,11 @@ export function PhotoWall() {
           {cells.map((cell) => (
             <div
               key={cell.key}
-              className="relative min-h-0 min-w-0 overflow-hidden opacity-0 animate-[fadeIn_0.45s_ease-out_forwards]"
+              className={`relative min-h-0 min-w-0 overflow-hidden opacity-0 animate-[fadeIn_0.45s_ease-out_forwards] ${
+                cell.isText
+                  ? "z-[2] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.35)]"
+                  : "z-0"
+              }`}
               style={{
                 animationDelay: `${Math.min(cell.flatIndex * 0.0008, 0.35)}s`,
               }}
@@ -123,23 +147,28 @@ export function PhotoWall() {
               <img
                 src={cell.src}
                 alt=""
-                className={`h-full w-full object-cover ${cell.isText ? "" : "brightness-[0.52] saturate-[0.85]"}`}
+                draggable={false}
+                className={`h-full w-full object-cover ${
+                  cell.isText
+                    ? "brightness-[1.14] contrast-[1.22] saturate-[1.12]"
+                    : "brightness-[0.62] saturate-[0.92]"
+                }`}
                 loading="lazy"
                 decoding="async"
               />
               {cell.overlayHex ? (
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute inset-0 mix-blend-soft-light"
+                  className="pointer-events-none absolute inset-0 mix-blend-overlay"
                   style={{
                     backgroundColor: cell.overlayHex,
-                    opacity: 0.38,
+                    opacity: 0.26,
                   }}
                 />
               ) : (
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute inset-0 bg-black/25"
+                  className="pointer-events-none absolute inset-0 bg-black/18"
                 />
               )}
             </div>

@@ -18,7 +18,8 @@ export async function buildTextMask({
 }: BuildTextMaskOptions): Promise<boolean[][]> {
   await document.fonts.ready;
 
-  const scale = 4;
+  /** Càng lớn càng chi tiết biên ô mask; 6 + bỏ phiếu đa số → chữ rõ cạnh hơn. */
+  const scale = 6;
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
   if (!ctx) {
@@ -66,23 +67,26 @@ export async function buildTextMask({
   const pixels = imgData.data;
 
   const mask: boolean[][] = [];
-  const threshold = 200;
+  /** Ngưỡng độ sáng: pixel tối hơn này được coi là mực chữ. */
+  const threshold = 192;
 
   for (let r = 0; r < rows; r++) {
     const row: boolean[] = [];
     for (let c = 0; c < cols; c++) {
-      let sum = 0;
+      let dark = 0;
       let count = 0;
       for (let dy = 0; dy < scale; dy++) {
         for (let dx = 0; dx < scale; dx++) {
           const x = c * scale + dx;
           const y = r * scale + dy;
           const i = (y * canvas.width + x) * 4;
-          sum += (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+          const lum = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
           count++;
+          if (lum < threshold) dark++;
         }
       }
-      row.push(sum / count < threshold);
+      // Đa số pixel trong ô là mực → ô thuộc chữ (biên sắc hơn so với trung bình cộng).
+      row.push(dark * 2 > count);
     }
     mask.push(row);
   }
