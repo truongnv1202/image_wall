@@ -31,6 +31,12 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
         images?: string[];
       };
       if (!res.ok) {
+        if (res.status === 401) {
+          setStatus(
+            "Không được phép (401): thiếu hoặc sai header x-upload-token — URL phải là /upload/<UPLOAD_PAGE_TOKEN> và cùng giá trị trong .env container.",
+          );
+          return;
+        }
         const msg =
           typeof data.error === "string" ? data.error : `Upload thất bại (HTTP ${res.status})`;
         setStatus(msg);

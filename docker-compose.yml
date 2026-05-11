@@ -6,6 +6,8 @@ services:
   web:
     build: .
     restart: unless-stopped
+    # Entrypoint chạy root → chown/chmod volume rồi gosu nextjs. Không đặt user: ở đây.
+    user: "0:0"
     environment:
       NODE_ENV: production
       # Trang upload bí mật: https://$DOMAIN/upload/$UPLOAD_PAGE_TOKEN — đặt trong file .env cùng thư mục compose (đã .gitignore). Để trống: không có trang upload, POST /api/upload không yêu cầu token.
