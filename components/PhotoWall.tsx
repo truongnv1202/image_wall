@@ -1,26 +1,32 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import { notoSans } from "@/app/fonts";
 import { DEFAULT_IMAGE_URLS } from "@/lib/mockImages";
 import type { ImagesPayload } from "@/lib/types";
-import { wallPhraseMaskDataUrl } from "@/lib/wallPhraseMask";
 import {
-  GRID_COLS as DEFAULT_GRID_COLS,
-  GRID_ROWS as DEFAULT_GRID_ROWS,
-  WALL_CELL_ASPECT_H,
-  WALL_CELL_ASPECT_W,
-  WALL_MASK_TEXT,
-} from "@/lib/wallConstants";
+  HERO_FLY_MS,
+  HERO_MAX_H,
+  HERO_MAX_W,
+  HERO_POPUP_MS,
+  STAGE_H,
+  STAGE_W,
+  STRIP_GAP_PX,
+  STRIP_MIN_HALF_LEN,
+  STRIP_TILE_H,
+  STRIP_TILE_W,
+} from "@/lib/wallStripConstants";
+import { wallPhraseMaskDataUrl } from "@/lib/wallPhraseMask";
+import { WALL_MASK_TEXT } from "@/lib/wallConstants";
 import type { WallTextPayload } from "@/lib/wallTextStore";
 
 const POLL_MS = 4000;
 const WALL_TEXT_POLL_MS = 10_000;
-/** Ảnh mới: thu scale vào ô (ms). */
-const NEW_IMAGE_ENTRANCE_MS = 900;
+/** Tốc độ trôi dải ảnh (px/giây). */
+const MARQUEE_PX_PER_SEC = 38;
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -34,39 +40,56 @@ const fetcherWallText = (url: string) =>
     return r.json() as Promise<WallTextPayload>;
   });
 
-type WallCell = {
-  key: string;
-  src: string;
-};
+type HeroState = { url: string; phase: "popup" | "fly" } | null;
 
-type PhraseWavePhase = "idle" | "bloom" | "settle";
-
-function buildCells(images: string[], cols: number, rows: number): WallCell[] {
-  const safe = images.length > 0 ? images : DEFAULT_IMAGE_URLS;
-  const len = safe.length;
-  const cells: WallCell[] = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const flatIndex = r * cols + c;
-      cells.push({
-        key: `${r}-${c}`,
-        src: safe[flatIndex % len],
-      });
-    }
+async function makeThumbBlobUrl(src: string): Promise<string | null> {
+  try {
+    const img = new Image();
+    img.decoding = "async";
+    img.crossOrigin = "anonymous";
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("load"));
+      img.src = src;
+    });
+    await img.decode?.();
+    const canvas = document.createElement("canvas");
+    canvas.width = STRIP_TILE_W;
+    canvas.height = STRIP_TILE_H;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, STRIP_TILE_W, STRIP_TILE_H);
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), "image/jpeg", 0.78),
+    );
+    if (!blob) return null;
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
   }
-  return cells;
+}
+
+function buildStripHalf(pool: string[]): string[] {
+  const safe = pool.length > 0 ? pool : DEFAULT_IMAGE_URLS;
+  const len = safe.length;
+  const half: string[] = [];
+  let i = 0;
+  while (half.length < STRIP_MIN_HALF_LEN) {
+    half.push(safe[i % len]!);
+    i++;
+  }
+  return half;
 }
 
 export function PhotoWall() {
   const [phraseIndex, setPhraseIndex] = useState(0);
-  const [wavePhase, setWavePhase] = useState<PhraseWavePhase>("idle");
   const [reducedMotion, setReducedMotion] = useState(false);
-  const wavePhaseRef = useRef<PhraseWavePhase>("idle");
   const prevImagesSnapshotRef = useRef<string[] | null>(null);
-  /** Giữ pool khi SWR tạm không có `data` (revalidate) để không nhảy về ảnh mặc định và mất ảnh vừa upload. */
   const lastGoodPoolRef = useRef<string[] | null>(null);
-  const pendingEntranceTimersRef = useRef<number[]>([]);
-  const [newImageEntranceUrls, setNewImageEntranceUrls] = useState(() => new Set<string>());
+  const heroQueueRef = useRef<string[]>([]);
+  const [hero, setHero] = useState<HeroState>(null);
+  const [thumbMap, setThumbMap] = useState<Record<string, string>>({});
+  const blobUrlsRef = useRef(new Set<string>());
 
   const { data } = useSWR<ImagesPayload>("/api/images", fetcher, {
     refreshInterval: POLL_MS,
@@ -84,17 +107,23 @@ export function PhotoWall() {
   }, [wallText]);
 
   const rotateMs = wallText?.rotateIntervalMs ?? 60_000;
-  const crossfadeMs = wallText?.phraseCrossfadeMs ?? 800;
-  const gridCols = wallText?.gridCols ?? DEFAULT_GRID_COLS;
-  const gridRows = wallText?.gridRows ?? DEFAULT_GRID_ROWS;
 
-  const staggerMax = Math.round(Math.min(580, Math.max(220, crossfadeMs * 0.65)));
-  const bloomDurMs = Math.round(Math.min(1200, Math.max(720, crossfadeMs * 1.15)));
-  const settleDurMs = Math.round(Math.min(1400, Math.max(780, crossfadeMs * 1.35)));
-  const bloomTotalMs = bloomDurMs + staggerMax + 140;
+  const pool = useMemo(() => {
+    if (Array.isArray(data?.images) && data.images.length > 0) {
+      lastGoodPoolRef.current = data.images;
+      return data.images;
+    }
+    if (lastGoodPoolRef.current && lastGoodPoolRef.current.length > 0) {
+      return lastGoodPoolRef.current;
+    }
+    return DEFAULT_IMAGE_URLS;
+  }, [data?.images]);
 
-  const wallAspectW = gridCols * WALL_CELL_ASPECT_W;
-  const wallAspectH = gridRows * WALL_CELL_ASPECT_H;
+  const stripHalf = useMemo(() => buildStripHalf(pool), [pool]);
+  const stripDup = useMemo(() => [...stripHalf, ...stripHalf], [stripHalf]);
+
+  const halfWidthPx = stripHalf.length * (STRIP_TILE_W + STRIP_GAP_PX);
+  const marqueeDurSec = Math.max(48, halfWidthPx / MARQUEE_PX_PER_SEC);
 
   const displayPhrase = (phrases[phraseIndex % phrases.length] || WALL_MASK_TEXT).toUpperCase();
   const phraseMaskUrl = useMemo(
@@ -102,9 +131,12 @@ export function PhotoWall() {
     [displayPhrase, notoSans.style.fontFamily],
   );
 
-  useEffect(() => {
-    wavePhaseRef.current = wavePhase;
-  }, [wavePhase]);
+  const revokeBlob = useCallback((u: string) => {
+    if (blobUrlsRef.current.has(u)) {
+      URL.revokeObjectURL(u);
+      blobUrlsRef.current.delete(u);
+    }
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -115,18 +147,19 @@ export function PhotoWall() {
   }, []);
 
   useEffect(() => {
-    if (reducedMotion) {
-      setNewImageEntranceUrls(new Set());
-    }
-  }, [reducedMotion]);
+    if (rotateMs <= 0 || phrases.length <= 1) return;
+    const id = window.setInterval(
+      () => setPhraseIndex((i) => (i + 1) % phrases.length),
+      rotateMs,
+    );
+    return () => window.clearInterval(id);
+  }, [rotateMs, phrases.length]);
 
   useEffect(() => {
-    return () => {
-      for (const t of pendingEntranceTimersRef.current) window.clearTimeout(t);
-      pendingEntranceTimersRef.current = [];
-    };
-  }, []);
+    setPhraseIndex((i) => i % Math.max(1, phrases.length));
+  }, [phrases]);
 
+  /** Ảnh mới: hàng chờ popup → bay góc trái trên → thumbnail 27×36 cho dải. */
   useEffect(() => {
     const imgs = data?.images;
     if (!imgs?.length) return;
@@ -141,86 +174,67 @@ export function PhotoWall() {
     const prevSet = new Set(prev);
     const added = imgs.filter((u) => !prevSet.has(u));
     prevImagesSnapshotRef.current = imgs.slice();
-    if (!added.length || reducedMotion) return;
+    for (const u of added) heroQueueRef.current.push(u);
+    if (!added.length) return;
 
-    setNewImageEntranceUrls((s) => {
-      const next = new Set(s);
-      for (const u of added) next.add(u);
-      return next;
+    setHero((h) => {
+      if (h) return h;
+      const next = heroQueueRef.current.shift();
+      return next ? { url: next, phase: "popup" } : null;
     });
-
-    for (const u of added) {
-      const tid = window.setTimeout(() => {
-        pendingEntranceTimersRef.current = pendingEntranceTimersRef.current.filter((x) => x !== tid);
-        setNewImageEntranceUrls((s) => {
-          if (!s.has(u)) return s;
-          const next = new Set(s);
-          next.delete(u);
-          return next;
-        });
-      }, NEW_IMAGE_ENTRANCE_MS) as unknown as number;
-      pendingEntranceTimersRef.current.push(tid);
-    }
-  }, [data?.images, reducedMotion]);
-
-  useEffect(() => {
-    setPhraseIndex((i) => i % Math.max(1, phrases.length));
-  }, [phrases]);
-
-  useEffect(() => {
-    if (rotateMs <= 0 || phrases.length <= 1) return;
-    if (reducedMotion) {
-      const id = window.setInterval(() => {
-        if (wavePhaseRef.current !== "idle") return;
-        setPhraseIndex((i) => (i + 1) % phrases.length);
-      }, rotateMs);
-      return () => window.clearInterval(id);
-    }
-    const id = window.setInterval(() => {
-      if (wavePhaseRef.current !== "idle") return;
-      setWavePhase("bloom");
-    }, rotateMs);
-    return () => window.clearInterval(id);
-  }, [rotateMs, phrases.length, reducedMotion]);
-
-  useEffect(() => {
-    if (wavePhase !== "bloom" || reducedMotion) return;
-    const nextIdx = (phraseIndex + 1) % phrases.length;
-    let unmounted = false;
-    const t = window.setTimeout(() => {
-      if (!unmounted) {
-        setPhraseIndex(nextIdx);
-        setWavePhase("settle");
-      }
-    }, bloomTotalMs);
-    return () => {
-      unmounted = true;
-      window.clearTimeout(t);
-    };
-  }, [wavePhase, phraseIndex, phrases, bloomTotalMs, reducedMotion]);
-
-  useEffect(() => {
-    if (wavePhase !== "settle" || reducedMotion) return;
-    const t = window.setTimeout(() => setWavePhase("idle"), settleDurMs + 80);
-    return () => window.clearTimeout(t);
-  }, [wavePhase, settleDurMs, reducedMotion]);
-
-  const pool = useMemo(() => {
-    if (Array.isArray(data?.images) && data.images.length > 0) {
-      lastGoodPoolRef.current = data.images;
-      return data.images;
-    }
-    if (lastGoodPoolRef.current && lastGoodPoolRef.current.length > 0) {
-      return lastGoodPoolRef.current;
-    }
-    return DEFAULT_IMAGE_URLS;
   }, [data?.images]);
 
-  const cells = useMemo(() => buildCells(pool, gridCols, gridRows), [gridCols, gridRows, pool]);
+  const finishHeroAndAdvance = useCallback(
+    async (url: string) => {
+      const blob = await makeThumbBlobUrl(url);
+      setThumbMap((prev) => {
+        const next = { ...prev };
+        const old = next[url];
+        if (old) revokeBlob(old);
+        if (blob) {
+          next[url] = blob;
+          blobUrlsRef.current.add(blob);
+        }
+        return next;
+      });
+      setHero(() => {
+        const n = heroQueueRef.current.shift();
+        return n ? { url: n, phase: "popup" } : null;
+      });
+    },
+    [revokeBlob],
+  );
 
-  const waveClass =
-    wavePhase === "bloom" ? "phrase-wave-bloom" : wavePhase === "settle" ? "phrase-wave-settle" : "";
-  const animating = wavePhase === "bloom" || wavePhase === "settle";
+  useEffect(() => {
+    if (!hero || hero.phase !== "popup") return;
+    const url = hero.url;
+    if (reducedMotion) {
+      const t = window.setTimeout(() => {
+        void finishHeroAndAdvance(url);
+      }, HERO_POPUP_MS);
+      return () => window.clearTimeout(t);
+    }
+    const t = window.setTimeout(() => {
+      setHero((h) => (h && h.phase === "popup" && h.url === url ? { ...h, phase: "fly" } : h));
+    }, HERO_POPUP_MS);
+    return () => window.clearTimeout(t);
+  }, [hero, reducedMotion, finishHeroAndAdvance]);
+
+  useEffect(() => {
+    if (!hero || hero.phase !== "fly") return;
+    const url = hero.url;
+    const t = window.setTimeout(() => {
+      void finishHeroAndAdvance(url);
+    }, HERO_FLY_MS);
+    return () => window.clearTimeout(t);
+  }, [hero, finishHeroAndAdvance]);
+
+  useEffect(() => {
+    return () => {
+      for (const b of blobUrlsRef.current) URL.revokeObjectURL(b);
+      blobUrlsRef.current.clear();
+    };
+  }, []);
 
   const overlayStyle = {
     WebkitMaskImage: phraseMaskUrl,
@@ -233,89 +247,81 @@ export function PhotoWall() {
     maskPosition: "center",
   } as CSSProperties;
 
-  const mosaicAspectStyle = {
-    aspectRatio: `${wallAspectW} / ${wallAspectH}`,
-    maxWidth: "100%",
+  const stageStyle = {
+    width: `min(100%, ${STAGE_W}px)`,
+    aspectRatio: `${STAGE_W} / ${STAGE_H}`,
     maxHeight: "100%",
   } as const;
 
+  const marqueeStyle = {
+    ["--wall-marquee-dur" as string]: `${marqueeDurSec}s`,
+  } as CSSProperties;
+
   return (
     <div className="flex h-full min-h-0 w-full flex-1 items-center justify-center">
-      {/* Khung 16:9: cần chiều ngang xác định (w-full) — tránh width/height auto khiến khung 0px và ảnh không vẽ. */}
       <div
-        className="relative aspect-video w-full max-w-full shrink-0 overflow-hidden rounded-md border border-[#2a2f3f] bg-[#0b1020] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
-        style={{ maxHeight: "100%" }}
+        className="relative shrink-0 overflow-hidden rounded-md border border-[#2a2f3f] bg-[#0b1020] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
+        style={stageStyle}
       >
-        <div className="absolute inset-0 flex min-h-0 min-w-0 items-center justify-center">
+        {/* Dải ảnh 27×36, lặp pool, trôi ngang; lazy để nhẹ. */}
+        <div className="absolute inset-x-0 top-1/2 z-0 flex -translate-y-1/2 items-center px-2">
           <div
-            className={`relative min-h-0 min-w-0 ${waveClass}`}
-            style={
-              {
-                ...mosaicAspectStyle,
-                height: "100%",
-                width: "auto",
-                minWidth: 0,
-                minHeight: 0,
-                ["--wall-bloom-dur" as string]: `${bloomDurMs}ms`,
-                ["--wall-settle-dur" as string]: `${settleDurMs}ms`,
-                ["--wall-new-entrance-dur" as string]: `${NEW_IMAGE_ENTRANCE_MS}ms`,
-              } as CSSProperties
-            }
+            className="wall-marquee-viewport relative w-full overflow-hidden"
+            style={{ height: STRIP_TILE_H }}
           >
             <div
-              className="wall-grid grid h-full w-full gap-0"
-              style={
-                {
-                  gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
-                  gridTemplateRows: `repeat(${gridRows}, minmax(0, 1fr))`,
-                } as CSSProperties
-              }
+              className={`wall-marquee-track flex ${!reducedMotion ? "wall-marquee-animate" : ""}`}
+              style={{ gap: STRIP_GAP_PX, ...marqueeStyle }}
             >
-              {cells.map((cell) => {
-                const incoming = newImageEntranceUrls.has(cell.src);
-                return (
-                  <div
-                    key={cell.key}
-                    className="relative min-h-0 min-w-0 overflow-hidden bg-[#0c1226]"
-                  >
-                    <div
-                      className={
-                        incoming
-                          ? "wall-new-img-scale-entrance flex h-full w-full min-h-0 min-w-0 items-center justify-center"
-                          : "flex h-full w-full min-h-0 min-w-0 items-center justify-center"
-                      }
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        key={cell.src}
-                        src={cell.src}
-                        alt=""
-                        draggable={false}
-                        className={
-                          animating
-                            ? "wall-grid-img-wave h-full w-full object-contain"
-                            : "h-full w-full object-contain transition-[filter] ease-out"
-                        }
-                        style={
-                          !animating
-                            ? { transitionDuration: `${Math.min(600, crossfadeMs)}ms` }
-                            : undefined
-                        }
-                        loading="eager"
-                        decoding="async"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+              {stripDup.map((src, i) => (
+                <div
+                  key={`${i}-${src}`}
+                  className="shrink-0 overflow-hidden rounded-[2px] bg-[#0c1226]"
+                  style={{ width: STRIP_TILE_W, height: STRIP_TILE_H }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={thumbMap[src] ?? src}
+                    alt=""
+                    width={STRIP_TILE_W}
+                    height={STRIP_TILE_H}
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                    decoding="async"
+                    draggable={false}
+                  />
+                </div>
+              ))}
             </div>
-            <div
-              aria-hidden
-              className="wall-text-overlay pointer-events-none absolute inset-0 bg-[rgba(4,8,18,0.72)]"
-              style={overlayStyle}
-            />
           </div>
         </div>
+
+        <div
+          aria-hidden
+          className="wall-text-overlay pointer-events-none absolute inset-0 z-[1] bg-[rgba(4,8,18,0.72)]"
+          style={overlayStyle}
+        />
+
+        {hero ? (
+          <div
+            className="wall-hero-backdrop pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-black/45"
+            aria-live="polite"
+          >
+            <div
+              className={`wall-hero-card pointer-events-none overflow-hidden rounded-lg bg-black/20 shadow-2xl ring-1 ring-white/10 ${
+                hero.phase === "popup" ? "wall-hero-card--popup" : "wall-hero-card--fly"
+              }`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={hero.url}
+                alt=""
+                className="h-full w-full object-contain"
+                decoding="async"
+              />
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

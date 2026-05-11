@@ -34,102 +34,73 @@ body {
   }
 }
 
-/* Chuyển câu: lưới ảnh dưới + mask chữ vector trên — sóng nhẹ trên toàn lưới. */
-@keyframes wall-bloom-grid-img {
-  0% {
-    filter: brightness(1) contrast(1) saturate(1);
-  }
-  55% {
-    filter: brightness(1.12) contrast(1.06) saturate(1.06);
-  }
-  100% {
-    filter: brightness(1.08) contrast(1.04) saturate(1.04);
-  }
-}
-
-@keyframes wall-settle-grid-img {
-  0% {
-    filter: brightness(1.08) contrast(1.04) saturate(1.04);
-  }
-  100% {
-    filter: brightness(1) contrast(1) saturate(1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .phrase-wave-bloom .wall-grid img,
-  .phrase-wave-settle .wall-grid img {
-    animation: none !important;
-  }
-}
-
-.phrase-wave-bloom .wall-grid img {
-  animation-name: wall-bloom-grid-img;
-  animation-duration: var(--wall-bloom-dur, 900ms);
-  animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
-  animation-fill-mode: both;
-}
-
-.phrase-wave-settle .wall-grid img {
-  animation-name: wall-settle-grid-img;
-  animation-duration: var(--wall-settle-dur, 1000ms);
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-  animation-fill-mode: both;
-}
-
-/* Ảnh vừa upload: phóng to trong ô rồi thu về kích thước lưới; overlay nền fade vào sau. */
+/* Tường: dải ảnh trôi + mask chữ. */
 .wall-text-overlay {
   mask-type: luminance;
   -webkit-mask-type: luminance;
 }
 
-@keyframes wall-new-img-scale {
-  0% {
-    transform: scale(1.18);
+/* Hai nửa giống nhau: translate -50% = một vòng nối khít (ảnh trôi ngang). */
+@keyframes wall-marquee-shift {
+  from {
+    transform: translateX(0);
   }
-  100% {
-    transform: scale(1);
-  }
-}
-
-@keyframes wall-new-overlay-in {
-  0% {
-    opacity: 0;
-  }
-  35% {
-    opacity: 0.12;
-  }
-  100% {
-    opacity: 1;
+  to {
+    transform: translateX(-50%);
   }
 }
 
-.wall-new-img-scale-entrance {
-  animation-name: wall-new-img-scale;
-  animation-duration: var(--wall-new-entrance-dur, 900ms);
-  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-  /* Chỉ forwards: tránh "both" + scale lớn ở 0% khiến ô nhỏ clip hết ảnh như không hiện. */
-  animation-fill-mode: forwards;
-  transform-origin: center center;
+.wall-marquee-track {
+  width: max-content;
 }
 
-.wall-new-overlay-entrance {
-  animation-name: wall-new-overlay-in;
-  animation-duration: var(--wall-new-entrance-dur, 900ms);
-  animation-timing-function: ease-out;
-  animation-fill-mode: both;
-  opacity: 0;
+.wall-marquee-track.wall-marquee-animate {
+  animation: wall-marquee-shift var(--wall-marquee-dur, 80s) linear infinite;
+  will-change: transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wall-new-img-scale-entrance,
-  .wall-new-overlay-entrance {
+  .wall-marquee-track.wall-marquee-animate {
     animation: none !important;
-    transform: none;
   }
+}
 
-  .wall-new-overlay-entrance {
-    opacity: 1;
+/* Popup ảnh mới → thu về góc trái trên (viewport). */
+.wall-hero-card {
+  position: fixed;
+  transition:
+    top 1.2s cubic-bezier(0.22, 1, 0.36, 1),
+    left 1.2s cubic-bezier(0.22, 1, 0.36, 1),
+    width 1.2s cubic-bezier(0.22, 1, 0.36, 1),
+    height 1.2s cubic-bezier(0.22, 1, 0.36, 1),
+    max-width 1.2s cubic-bezier(0.22, 1, 0.36, 1),
+    max-height 1.2s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.wall-hero-card--popup {
+  top: 50%;
+  left: 50%;
+  width: min(780px, 90vw);
+  height: min(1040px, 90vh);
+  max-width: 780px;
+  max-height: 1040px;
+  transform: translate(-50%, -50%);
+}
+
+.wall-hero-card--fly {
+  top: 12px;
+  left: 12px;
+  width: 27px;
+  height: 36px;
+  max-width: 27px;
+  max-height: 36px;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wall-hero-card {
+    transition: none;
   }
 }
 
