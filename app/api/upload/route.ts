@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
+import path from "path";
 import sharp from "sharp";
 
 import { prependImageUrl } from "@/lib/imageStore";
