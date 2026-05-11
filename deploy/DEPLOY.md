@@ -228,12 +228,13 @@ curl -4sS "http://${DOMAIN}/.well-known/acme-challenge/ping.txt"
 
 Cả hai lệnh `curl` cuối nên in **`ok`** (không phải HTML 301 sai).
 
-**HTTPS nội bộ (SNI):**
+**HTTPS nội bộ (SNI):** dùng **hostname trong URL** (curl gửi SNI theo host của URL, không theo `-H Host`). `https://127.0.0.1/` → SNI là `127.0.0.1` → Nginx chọn sai `server` 443.
 
 ```bash
-curl -4skI -H "Host: ${DOMAIN}" "https://127.0.0.1/" \
-  --resolve "${DOMAIN}:443:127.0.0.1" | head -20
+curl -4skI "https://${DOMAIN}/" --resolve "${DOMAIN}:443:127.0.0.1" | head -20
 ```
+
+Kỳ vọng: `X-Powered-By: Next.js` (hoặc body lớn), không phải `content-length: 437` + `last-modified` kiểu file tĩnh.
 
 ---
 
