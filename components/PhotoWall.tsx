@@ -122,10 +122,16 @@ export function PhotoWall() {
   }, [gridCols, gridRows, mask, pool]);
 
   return (
-    <div className="flex w-full justify-center px-1 py-2 sm:px-2">
+    <div className="flex h-full min-h-0 w-full flex-1 items-center justify-center">
       <div
-        className="relative w-full max-w-[min(100vw,2200px)] overflow-hidden rounded-md border border-[#2a2f3f] bg-[#0b1020] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
-        style={{ aspectRatio: `${wallAspectW} / ${wallAspectH}` }}
+        className="relative max-h-full max-w-full overflow-hidden rounded-md border border-[#2a2f3f] bg-[#0b1020] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
+        style={{
+          aspectRatio: `${wallAspectW} / ${wallAspectH}`,
+          width: "auto",
+          height: "auto",
+          maxWidth: "100%",
+          maxHeight: "100%",
+        }}
       >
         <div
           className="grid h-full w-full gap-0"
