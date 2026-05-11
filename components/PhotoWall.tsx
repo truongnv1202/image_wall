@@ -7,18 +7,7 @@ import useSWR from "swr";
 import { notoSans } from "@/app/fonts";
 import { DEFAULT_IMAGE_URLS } from "@/lib/mockImages";
 import type { ImagesPayload } from "@/lib/types";
-import {
-  HERO_FLY_MS,
-  HERO_MAX_H,
-  HERO_MAX_W,
-  HERO_POPUP_MS,
-  STAGE_H,
-  STAGE_W,
-  STRIP_GAP_PX,
-  STRIP_MIN_HALF_LEN,
-  STRIP_TILE_H,
-  STRIP_TILE_W,
-} from "@/lib/wallStripConstants";
+import { HERO_FLY_MS, HERO_POPUP_MS, STRIP_GAP_PX, STRIP_MIN_HALF_LEN, STRIP_TILE_H, STRIP_TILE_W } from "@/lib/wallStripConstants";
 import { wallPhraseMaskDataUrl } from "@/lib/wallPhraseMask";
 import { WALL_MASK_TEXT } from "@/lib/wallConstants";
 import type { WallTextPayload } from "@/lib/wallTextStore";
@@ -42,33 +31,6 @@ const fetcherWallText = (url: string) =>
 
 type HeroState = { url: string; phase: "popup" | "fly" } | null;
 
-async function makeThumbBlobUrl(src: string): Promise<string | null> {
-  try {
-    const img = new Image();
-    img.decoding = "async";
-    img.crossOrigin = "anonymous";
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = () => reject(new Error("load"));
-      img.src = src;
-    });
-    await img.decode?.();
-    const canvas = document.createElement("canvas");
-    canvas.width = STRIP_TILE_W;
-    canvas.height = STRIP_TILE_H;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-    ctx.drawImage(img, 0, 0, STRIP_TILE_W, STRIP_TILE_H);
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob((b) => resolve(b), "image/jpeg", 0.78),
-    );
-    if (!blob) return null;
-    return URL.createObjectURL(blob);
-  } catch {
-    return null;
-  }
-}
-
 function buildStripHalf(pool: string[]): string[] {
   const safe = pool.length > 0 ? pool : DEFAULT_IMAGE_URLS;
   const len = safe.length;
@@ -88,8 +50,8 @@ export function PhotoWall() {
   const lastGoodPoolRef = useRef<string[] | null>(null);
   const heroQueueRef = useRef<string[]>([]);
   const [hero, setHero] = useState<HeroState>(null);
-  const [thumbMap, setThumbMap] = useState<Record<string, string>>({});
-  const blobUrlsRef = useRef(new Set<string>());
+  const marqueeViewportRef = useRef<HTMLDivElement>(null);
+  const [marqueeTileWidth, setMarqueeTileWidth] = useState(STRIP_TILE_W);
 
   const { data } = useSWR<ImagesPayload>("/api/images", fetcher, {
     refreshInterval: POLL_MS,
@@ -122,7 +84,7 @@ export function PhotoWall() {
   const stripHalf = useMemo(() => buildStripHalf(pool), [pool]);
   const stripDup = useMemo(() => [...stripHalf, ...stripHalf], [stripHalf]);
 
-  const halfWidthPx = stripHalf.length * (STRIP_TILE_W + STRIP_GAP_PX);
+  const halfWidthPx = stripHalf.length * (marqueeTileWidth + STRIP_GAP_PX);
   const marqueeDurSec = Math.max(48, halfWidthPx / MARQUEE_PX_PER_SEC);
 
   const displayPhrase = (phrases[phraseIndex % phrases.length] || WALL_MASK_TEXT).toUpperCase();
@@ -130,13 +92,6 @@ export function PhotoWall() {
     () => wallPhraseMaskDataUrl(displayPhrase, notoSans.style.fontFamily),
     [displayPhrase, notoSans.style.fontFamily],
   );
-
-  const revokeBlob = useCallback((u: string) => {
-    if (blobUrlsRef.current.has(u)) {
-      URL.revokeObjectURL(u);
-      blobUrlsRef.current.delete(u);
-    }
-  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -184,33 +139,19 @@ export function PhotoWall() {
     });
   }, [data?.images]);
 
-  const finishHeroAndAdvance = useCallback(
-    async (url: string) => {
-      const blob = await makeThumbBlobUrl(url);
-      setThumbMap((prev) => {
-        const next = { ...prev };
-        const old = next[url];
-        if (old) revokeBlob(old);
-        if (blob) {
-          next[url] = blob;
-          blobUrlsRef.current.add(blob);
-        }
-        return next;
-      });
-      setHero(() => {
-        const n = heroQueueRef.current.shift();
-        return n ? { url: n, phase: "popup" } : null;
-      });
-    },
-    [revokeBlob],
-  );
+  const finishHeroAndAdvance = useCallback(() => {
+    setHero(() => {
+      const n = heroQueueRef.current.shift();
+      return n ? { url: n, phase: "popup" } : null;
+    });
+  }, []);
 
   useEffect(() => {
     if (!hero || hero.phase !== "popup") return;
     const url = hero.url;
     if (reducedMotion) {
       const t = window.setTimeout(() => {
-        void finishHeroAndAdvance(url);
+        finishHeroAndAdvance();
       }, HERO_POPUP_MS);
       return () => window.clearTimeout(t);
     }
@@ -222,18 +163,25 @@ export function PhotoWall() {
 
   useEffect(() => {
     if (!hero || hero.phase !== "fly") return;
-    const url = hero.url;
     const t = window.setTimeout(() => {
-      void finishHeroAndAdvance(url);
+      finishHeroAndAdvance();
     }, HERO_FLY_MS);
     return () => window.clearTimeout(t);
   }, [hero, finishHeroAndAdvance]);
 
   useEffect(() => {
-    return () => {
-      for (const b of blobUrlsRef.current) URL.revokeObjectURL(b);
-      blobUrlsRef.current.clear();
+    const el = marqueeViewportRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const h = el.clientHeight;
+      if (h <= 0) return;
+      const w = (h * STRIP_TILE_W) / STRIP_TILE_H;
+      setMarqueeTileWidth(Math.max(STRIP_TILE_W, Math.round(w)));
     };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   const overlayStyle = {
@@ -247,47 +195,38 @@ export function PhotoWall() {
     maskPosition: "center",
   } as CSSProperties;
 
-  const stageStyle = {
-    width: `min(100%, ${STAGE_W}px)`,
-    aspectRatio: `${STAGE_W} / ${STAGE_H}`,
-    maxHeight: "100%",
-  } as const;
-
   const marqueeStyle = {
     ["--wall-marquee-dur" as string]: `${marqueeDurSec}s`,
   } as CSSProperties;
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 items-center justify-center">
-      <div
-        className="relative shrink-0 overflow-hidden rounded-md border border-[#2a2f3f] bg-[#0b1020] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
-        style={stageStyle}
-      >
-        {/* Dải ảnh 27×36, lặp pool, trôi ngang; lazy để nhẹ. */}
-        <div className="absolute inset-x-0 top-1/2 z-0 flex -translate-y-1/2 items-center px-2">
-          <div
-            className="wall-marquee-viewport relative w-full overflow-hidden"
-            style={{ height: STRIP_TILE_H }}
-          >
+    <div className="flex h-full min-h-0 w-full flex-1">
+      <div className="relative h-full min-h-0 w-full overflow-hidden bg-[#0b1020]">
+        {/* Dải ảnh cao kín khung (100% chiều cao màn), tỉ lệ 27:36 mỗi ô; lặp pool; lazy. */}
+        <div className="absolute inset-0 z-0 flex items-stretch">
+          <div ref={marqueeViewportRef} className="wall-marquee-viewport relative h-full w-full overflow-hidden">
             <div
-              className={`wall-marquee-track flex ${!reducedMotion ? "wall-marquee-animate" : ""}`}
+              className={`wall-marquee-track flex h-full ${!reducedMotion ? "wall-marquee-animate" : ""}`}
               style={{ gap: STRIP_GAP_PX, ...marqueeStyle }}
             >
               {stripDup.map((src, i) => (
                 <div
                   key={`${i}-${src}`}
-                  className="shrink-0 overflow-hidden rounded-[2px] bg-[#0c1226]"
-                  style={{ width: STRIP_TILE_W, height: STRIP_TILE_H }}
+                  className="h-full shrink-0 overflow-hidden bg-[#0c1226]"
+                  style={{
+                    aspectRatio: `${STRIP_TILE_W} / ${STRIP_TILE_H}`,
+                    height: "100%",
+                    width: "auto",
+                  }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={thumbMap[src] ?? src}
+                    src={src}
                     alt=""
-                    width={STRIP_TILE_W}
-                    height={STRIP_TILE_H}
                     className="h-full w-full object-cover"
                     loading="lazy"
                     decoding="async"
+                    sizes="(max-width: 1920px) 12vw, 240px"
                     draggable={false}
                   />
                 </div>
