@@ -13,13 +13,21 @@ import {
   TEXT_OVERLAY_COLORS,
   WALL_MASK_TEXT,
 } from "@/lib/wallConstants";
+import type { WallTextPayload } from "@/lib/wallTextStore";
 
 const POLL_MS = 4000;
+const WALL_TEXT_POLL_MS = 10_000;
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
     if (!r.ok) throw new Error("fetch failed");
     return r.json() as Promise<ImagesPayload>;
+  });
+
+const fetcherWallText = (url: string) =>
+  fetch(url).then((r) => {
+    if (!r.ok) throw new Error("fetch failed");
+    return r.json() as Promise<WallTextPayload>;
   });
 
 export type WallCell = {
@@ -82,15 +90,46 @@ function buildCells(mask: boolean[][], images: string[]): WallCell[] {
 
 export function PhotoWall() {
   const [mask, setMask] = useState<boolean[][] | null>(null);
+  const [phraseIndex, setPhraseIndex] = useState(0);
   const { data } = useSWR<ImagesPayload>("/api/images", fetcher, {
     refreshInterval: POLL_MS,
     revalidateOnFocus: true,
   });
+  const { data: wallText } = useSWR<WallTextPayload>("/api/wall-text", fetcherWallText, {
+    refreshInterval: WALL_TEXT_POLL_MS,
+    revalidateOnFocus: true,
+  });
+
+  const phrases = useMemo(() => {
+    if (!wallText?.phrases?.length) return [WALL_MASK_TEXT];
+    const t = wallText.phrases.map((p) => p.trim()).filter((p) => p.length > 0);
+    return t.length > 0 ? t : [WALL_MASK_TEXT];
+  }, [wallText]);
+
+  const rotateMs = wallText?.rotateIntervalMs ?? 60_000;
+
+  const activePhrase = useMemo(
+    () => phrases[phraseIndex % phrases.length]?.trim() || WALL_MASK_TEXT,
+    [phrases, phraseIndex],
+  );
+
+  useEffect(() => {
+    setPhraseIndex((i) => i % Math.max(1, phrases.length));
+  }, [phrases]);
+
+  useEffect(() => {
+    if (rotateMs <= 0 || phrases.length <= 1) return;
+    const id = window.setInterval(() => {
+      setPhraseIndex((i) => (i + 1) % phrases.length);
+    }, rotateMs);
+    return () => window.clearInterval(id);
+  }, [rotateMs, phrases.length]);
 
   useEffect(() => {
     let cancelled = false;
+    const text = activePhrase.trim() || WALL_MASK_TEXT;
     buildTextMask({
-      text: WALL_MASK_TEXT,
+      text,
       cols: GRID_COLS,
       rows: GRID_ROWS,
       fontFamily: notoSans.style.fontFamily,
@@ -100,20 +139,25 @@ export function PhotoWall() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activePhrase]);
 
+  const imgs = data?.images?.length ? data.images : DEFAULT_IMAGE_URLS;
   const cells = useMemo(() => {
-    if (!mask || !data?.images) return null;
-    return buildCells(mask, data.images);
-  }, [mask, data]);
+    if (!mask) return null;
+    return buildCells(mask, imgs);
+  }, [mask, imgs]);
+
+  const frame = (
+    <div
+      className="relative w-full max-w-[min(100vw,calc((100vh-10rem)*100/60))] overflow-hidden rounded-sm border border-zinc-800 bg-black shadow-2xl shadow-black/60"
+      style={{ aspectRatio: `${GRID_COLS} / ${GRID_ROWS}` }}
+    />
+  );
 
   if (!cells) {
     return (
-      <div
-        className="flex aspect-[100/60] w-full max-w-[min(100vw,calc((100vh-10rem)*100/60))] items-center justify-center bg-zinc-900 text-zinc-400"
-        role="status"
-      >
-        Đang tính ma trận chữ…
+      <div className="flex w-full flex-col items-center gap-1 px-2">
+        {frame}
       </div>
     );
   }
