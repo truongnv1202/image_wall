@@ -148,6 +148,7 @@ Dữ liệu **pools ảnh** và **upload** nằm trong Docker volumes (`pools-da
 |------------|-------------|
 | `cp: cannot stat ... tlcand.gamegiaoduc.co.conf`: No such file | Repo trên server thiếu thư mục/code mới: `cd /opt/image_wall && git pull`, hoặc copy nguyên file `deploy/nginx-host/tlcand.gamegiaoduc.co.conf` từ máy dev lên server đúng đường dẫn rồi chạy lại `cp` vào `sites-available`. |
 | `nginx: [emerg] open() "... sites-enabled/tlcand..." failed` | Symlink trỏ tới file không tồn tại (do `cp` lỗi). **Sửa gấp:** `sudo rm -f /etc/nginx/sites-enabled/tlcand.gamegiaoduc.co.conf` → `sudo nginx -t && sudo systemctl reload nginx`. Sau khi có file đúng trong `/opt/image_wall/...`, tạo lại symlink như bước 5. |
+| `duplicate upstream "image_wall_backend"` | Hai file trong `sites-enabled` (hoặc một file lặp khối `upstream`) cùng định nghĩa một tên upstream. Repo đã đổi tên thành **`tlcand_gamegiaoduc_upstream`**. Trên server: `git pull`, copy lại file site từ `deploy/nginx-host/`, xóa bản cũ trùng upstream trong `sites-enabled`, chỉ giữ **một** file site cho domain này. |
 | 502 Bad Gateway | Kiểm tra `docker compose ps`; `curl http://127.0.0.1:5000` trên server. |
 | Sai domain / Host header | Đồng bộ `server_name` với DNS; trong repo đã dùng `tlcand.gamegiaoduc.co`. |
 | SSL lỗi | `sudo certbot certificates`; DNS phải trỏ đúng IP trước khi xin cert. |
