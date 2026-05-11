@@ -2,13 +2,44 @@ export type BuildTextMaskOptions = {
   text: string;
   cols: number;
   rows: number;
-  /** Resolved canvas font family, e.g. from next/font */
+  /** Resolved canvas font family, e.g. from next/font — phải khớp weight với font đã nạp (700). */
   fontFamily: string;
 };
 
+function drawMultilineText(
+  ctx: CanvasRenderingContext2D,
+  lineBlocks: string[],
+  cx: number,
+  startY: number,
+  lineGap: number,
+  fontSize: number,
+  fontFamily: string,
+  opts: {
+    fillStyle: string;
+    shadowBlur: number;
+    shadowColor: string;
+    globalAlpha?: number;
+  },
+) {
+  ctx.save();
+  ctx.font = `700 ${fontSize}px ${fontFamily}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = opts.fillStyle;
+  ctx.shadowBlur = opts.shadowBlur;
+  ctx.shadowColor = opts.shadowColor;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+  if (opts.globalAlpha != null) ctx.globalAlpha = opts.globalAlpha;
+  for (let i = 0; i < lineBlocks.length; i++) {
+    ctx.fillText(lineBlocks[i], cx, startY + i * lineGap);
+  }
+  ctx.restore();
+}
+
 /**
- * Renders text on an offscreen canvas and samples a cols×rows boolean grid.
- * `true` means the cell is covered by glyph ink (text cell).
+ * Sinh mask: nền trắng → lớp chữ **mờ** (màu xám + shadow blur) → lớp chữ **đen sắc nét** đè lên
+ * (“đục” nét trên lớp mờ). Lấy mẫu theo ô; đa số pixel tối trong ô = ô thuộc chữ.
  */
 export async function buildTextMask({
   text,
@@ -18,10 +49,9 @@ export async function buildTextMask({
 }: BuildTextMaskOptions): Promise<boolean[][]> {
   await document.fonts.ready;
 
-  /** Càng lớn càng chi tiết biên ô mask; 6 + bỏ phiếu đa số → chữ rõ cạnh hơn. */
-  const scale = 6;
+  const scale = 8;
   const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) {
     throw new Error("2D context unavailable");
   }
@@ -31,9 +61,6 @@ export async function buildTextMask({
 
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "#000000";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
 
   const lines = text
     .split(/\r?\n/)
@@ -41,12 +68,12 @@ export async function buildTextMask({
     .filter((l) => l.length > 0);
   const lineBlocks = lines.length ? lines : [" "];
 
-  let fontSize = Math.floor(canvas.height * 0.31);
+  let fontSize = Math.floor(canvas.height * 0.3);
   while (fontSize >= 8) {
-    ctx.font = `800 ${fontSize}px ${fontFamily}`;
+    ctx.font = `700 ${fontSize}px ${fontFamily}`;
     const maxLineWidth = Math.max(
       ...lineBlocks.map((line) => ctx.measureText(line).width),
-      1
+      1,
     );
     const blockHeight = fontSize * (lineBlocks.length * 1.1 - 0.1);
     const fitsWidth = maxLineWidth <= canvas.width * 0.92;
@@ -55,20 +82,42 @@ export async function buildTextMask({
     fontSize -= 2;
   }
 
-  ctx.font = `800 ${fontSize}px ${fontFamily}`;
   const lineGap = fontSize * 1.1;
   const totalH = lineGap * (lineBlocks.length - 1) + fontSize;
-  let startY = (canvas.height - totalH) / 2 + fontSize / 2;
-  for (let i = 0; i < lineBlocks.length; i++) {
-    ctx.fillText(lineBlocks[i], canvas.width / 2, startY + i * lineGap);
-  }
+  const startY = (canvas.height - totalH) / 2 + fontSize / 2;
+  const cx = canvas.width / 2;
+
+  const blurWide = scale * 3.4;
+  const blurMid = scale * 2;
+
+  // 1) Lớp mờ rộng — tạo “thân” chữ loang nhẹ
+  drawMultilineText(ctx, lineBlocks, cx, startY, lineGap, fontSize, fontFamily, {
+    fillStyle: "rgba(155, 165, 180, 0.42)",
+    shadowBlur: blurWide,
+    shadowColor: "rgba(110, 125, 145, 0.5)",
+    globalAlpha: 1,
+  });
+
+  // 2) Lớp mờ hẹp hơn — đậm dần vào lõi chữ
+  drawMultilineText(ctx, lineBlocks, cx, startY, lineGap, fontSize, fontFamily, {
+    fillStyle: "rgba(120, 130, 148, 0.38)",
+    shadowBlur: blurMid,
+    shadowColor: "rgba(90, 102, 120, 0.45)",
+  });
+
+  // 3) Chữ đen sắc nét — đục nét lên trên lớp mờ (không shadow)
+  drawMultilineText(ctx, lineBlocks, cx, startY, lineGap, fontSize, fontFamily, {
+    fillStyle: "#000000",
+    shadowBlur: 0,
+    shadowColor: "transparent",
+  });
 
   const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const pixels = imgData.data;
 
   const mask: boolean[][] = [];
-  /** Ngưỡng độ sáng: pixel tối hơn này được coi là mực chữ. */
-  const threshold = 192;
+  /** Sau lớp mờ + đen: lõi chữ rất tốt; viền loang hơi sáng hơn — ngưỡng cân bằng. */
+  const threshold = 196;
 
   for (let r = 0; r < rows; r++) {
     const row: boolean[] = [];
@@ -85,7 +134,6 @@ export async function buildTextMask({
           if (lum < threshold) dark++;
         }
       }
-      // Đa số pixel trong ô là mực → ô thuộc chữ (biên sắc hơn so với trung bình cộng).
       row.push(dark * 2 > count);
     }
     mask.push(row);

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import { notoSans } from "@/app/fonts";
@@ -10,7 +11,6 @@ import type { ImagesPayload } from "@/lib/types";
 import {
   GRID_COLS as DEFAULT_GRID_COLS,
   GRID_ROWS as DEFAULT_GRID_ROWS,
-  TEXT_OVERLAY_COLORS,
   WALL_MASK_TEXT,
 } from "@/lib/wallConstants";
 import type { WallTextPayload } from "@/lib/wallTextStore";
@@ -34,8 +34,9 @@ type WallCell = {
   key: string;
   src: string;
   isText: boolean;
-  textOrdinal: number;
 };
+
+type PhraseWavePhase = "idle" | "bloom" | "settle";
 
 function buildCells(mask: boolean[][], images: string[], cols: number, rows: number): WallCell[] {
   const safe = images.length > 0 ? images : DEFAULT_IMAGE_URLS;
@@ -57,9 +58,51 @@ function buildCells(mask: boolean[][], images: string[], cols: number, rows: num
   return cells;
 }
 
+/** Trễ sóng theo khoảng cách từ tâm khối chữ (ô chữ sáng dần lan ra). */
+function buildTextWaveDelaysMs(mask: boolean[][], rows: number, cols: number, staggerMax: number) {
+  const map = new Map<string, number>();
+  let sumR = 0;
+  let sumC = 0;
+  let n = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (mask[r]?.[c]) {
+        sumR += r;
+        sumC += c;
+        n++;
+      }
+    }
+  }
+  const cy = n > 0 ? sumR / n : rows / 2;
+  const cx = n > 0 ? sumC / n : cols / 2;
+  let maxD = 1;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (mask[r]?.[c]) {
+        const d = Math.hypot(c - cx, r - cy);
+        if (d > maxD) maxD = d;
+      }
+    }
+  }
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (mask[r]?.[c]) {
+        const d = Math.hypot(c - cx, r - cy);
+        map.set(`${r}-${c}`, (d / maxD) * staggerMax);
+      }
+    }
+  }
+  return map;
+}
+
 export function PhotoWall() {
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [mask, setMask] = useState<boolean[][] | null>(null);
+  const [wavePhase, setWavePhase] = useState<PhraseWavePhase>("idle");
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const wavePhaseRef = useRef<PhraseWavePhase>("idle");
+  const nextMaskRef = useRef<boolean[][] | null>(null);
+
   const { data } = useSWR<ImagesPayload>("/api/images", fetcher, {
     refreshInterval: POLL_MS,
     revalidateOnFocus: true,
@@ -79,13 +122,26 @@ export function PhotoWall() {
   const crossfadeMs = wallText?.phraseCrossfadeMs ?? 800;
   const gridCols = wallText?.gridCols ?? DEFAULT_GRID_COLS;
   const gridRows = wallText?.gridRows ?? DEFAULT_GRID_ROWS;
-  /** Mỗi ô tường đúng tỷ lệ 3×4 (rộng:cao = 3:4) → tỷ lệ khung tổng = (cols×3):(rows×4). */
+
+  const staggerMax = Math.round(Math.min(580, Math.max(220, crossfadeMs * 0.65)));
+  const bloomDurMs = Math.round(Math.min(1200, Math.max(720, crossfadeMs * 1.15)));
+  const settleDurMs = Math.round(Math.min(1400, Math.max(780, crossfadeMs * 1.35)));
+  const bloomTotalMs = bloomDurMs + staggerMax + 140;
+
   const wallAspectW = gridCols * 3;
   const wallAspectH = gridRows * 4;
-  const activePhrase = useMemo(
-    () => (phrases[phraseIndex % phrases.length] || WALL_MASK_TEXT).toUpperCase(),
-    [phraseIndex, phrases],
-  );
+
+  useEffect(() => {
+    wavePhaseRef.current = wavePhase;
+  }, [wavePhase]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => setReducedMotion(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
 
   useEffect(() => {
     setPhraseIndex((i) => i % Math.max(1, phrases.length));
@@ -93,16 +149,26 @@ export function PhotoWall() {
 
   useEffect(() => {
     if (rotateMs <= 0 || phrases.length <= 1) return;
+    if (reducedMotion) {
+      const id = window.setInterval(() => {
+        if (wavePhaseRef.current !== "idle") return;
+        setPhraseIndex((i) => (i + 1) % phrases.length);
+      }, rotateMs);
+      return () => window.clearInterval(id);
+    }
     const id = window.setInterval(() => {
-      setPhraseIndex((i) => (i + 1) % phrases.length);
+      if (wavePhaseRef.current !== "idle") return;
+      setWavePhase("bloom");
     }, rotateMs);
     return () => window.clearInterval(id);
-  }, [rotateMs, phrases.length]);
+  }, [rotateMs, phrases.length, reducedMotion]);
 
   useEffect(() => {
+    if (wavePhase !== "idle") return;
     let cancelled = false;
+    const text = (phrases[phraseIndex % phrases.length] || WALL_MASK_TEXT).toUpperCase();
     buildTextMask({
-      text: activePhrase,
+      text,
       cols: gridCols,
       rows: gridRows,
       fontFamily: notoSans.style.fontFamily,
@@ -112,7 +178,53 @@ export function PhotoWall() {
     return () => {
       cancelled = true;
     };
-  }, [activePhrase, gridCols, gridRows]);
+  }, [phraseIndex, phrases, gridCols, gridRows, wavePhase]);
+
+  useEffect(() => {
+    if (wavePhase !== "bloom" || reducedMotion) return;
+    const nextIdx = (phraseIndex + 1) % phrases.length;
+    const nextText = (phrases[nextIdx] || WALL_MASK_TEXT).toUpperCase();
+    let unmounted = false;
+    nextMaskRef.current = null;
+    const maskPromise = buildTextMask({
+      text: nextText,
+      cols: gridCols,
+      rows: gridRows,
+      fontFamily: notoSans.style.fontFamily,
+    });
+    void maskPromise.then((m) => {
+      if (!unmounted) nextMaskRef.current = m;
+    });
+    const t = window.setTimeout(() => {
+      const m = nextMaskRef.current;
+      if (m) {
+        setMask(m);
+        setPhraseIndex(nextIdx);
+        setWavePhase("settle");
+      } else {
+        void maskPromise.then((m2) => {
+          setMask(m2);
+          setPhraseIndex(nextIdx);
+          setWavePhase("settle");
+        });
+      }
+    }, bloomTotalMs);
+    return () => {
+      unmounted = true;
+      window.clearTimeout(t);
+    };
+  }, [wavePhase, phraseIndex, phrases, gridCols, gridRows, bloomTotalMs, reducedMotion]);
+
+  useEffect(() => {
+    if (wavePhase !== "settle" || reducedMotion) return;
+    const t = window.setTimeout(() => setWavePhase("idle"), settleDurMs + 80);
+    return () => window.clearTimeout(t);
+  }, [wavePhase, settleDurMs, reducedMotion]);
+
+  const waveDelays = useMemo(() => {
+    if (!mask) return new Map<string, number>();
+    return buildTextWaveDelaysMs(mask, gridRows, gridCols, staggerMax);
+  }, [mask, gridCols, gridRows, staggerMax]);
 
   const pool = data?.images?.length ? data.images : DEFAULT_IMAGE_URLS;
 
@@ -120,6 +232,10 @@ export function PhotoWall() {
     if (!mask) return null;
     return buildCells(mask, pool, gridCols, gridRows);
   }, [gridCols, gridRows, mask, pool]);
+
+  const waveClass =
+    wavePhase === "bloom" ? "phrase-wave-bloom" : wavePhase === "settle" ? "phrase-wave-settle" : "";
+  const animating = wavePhase === "bloom" || wavePhase === "settle";
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 items-center justify-center">
@@ -134,18 +250,29 @@ export function PhotoWall() {
         }}
       >
         <div
-          className="grid h-full w-full gap-0"
-          style={{
-            gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
-            gridTemplateRows: `repeat(${gridRows}, minmax(0, 1fr))`,
-          }}
+          className={`grid h-full w-full gap-0 ${waveClass}`}
+          style={
+            {
+              gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
+              gridTemplateRows: `repeat(${gridRows}, minmax(0, 1fr))`,
+              ["--wall-bloom-dur" as string]: `${bloomDurMs}ms`,
+              ["--wall-settle-dur" as string]: `${settleDurMs}ms`,
+            } as CSSProperties
+          }
         >
           {(cells ?? Array.from({ length: gridCols * gridRows })).map((cell, i) => {
             const isText = Boolean(cell?.isText);
-            const textOrdinal = cell?.textOrdinal ?? 0;
-            const textTint = TEXT_OVERLAY_COLORS[textOrdinal % TEXT_OVERLAY_COLORS.length];
+            const delayMs = cell ? (waveDelays.get(cell.key) ?? 0) : 0;
             return (
-              <div key={cell?.key ?? `loading-${i}`} className="relative min-h-0 min-w-0 overflow-hidden bg-[#0c1226]">
+              <div
+                key={cell?.key ?? `loading-${i}`}
+                className={`relative min-h-0 min-w-0 overflow-hidden bg-[#0c1226] ${isText ? "wall-cell--text" : ""}`}
+                style={
+                  isText
+                    ? ({ ["--wave-delay" as string]: `${delayMs}ms` } as CSSProperties)
+                    : undefined
+                }
+              >
                 {cell ? (
                   <>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -153,33 +280,26 @@ export function PhotoWall() {
                       src={cell.src}
                       alt=""
                       draggable={false}
-                      className={`h-full w-full object-contain transition-[filter] ease-linear ${
+                      className={
                         isText
-                          ? "brightness-[1.12] contrast-[1.22] saturate-[1.12]"
-                          : "brightness-[0.48] contrast-[0.95] saturate-[0.62]"
-                      }`}
-                      style={{ transitionDuration: `${crossfadeMs}ms` }}
+                          ? animating
+                            ? "h-full w-full object-contain"
+                            : `h-full w-full object-contain transition-[filter] ease-out brightness-[1.04] contrast-[1.05] saturate-[1.06]`
+                          : "h-full w-full object-contain"
+                      }
+                      style={
+                        isText && !animating
+                          ? { transitionDuration: `${Math.min(600, crossfadeMs)}ms` }
+                          : undefined
+                      }
                       loading="lazy"
                       decoding="async"
                     />
-                    <div
-                      aria-hidden
-                      className="pointer-events-none absolute inset-0 transition-[opacity,background-color] ease-in-out"
-                      style={{
-                        transitionDuration: `${crossfadeMs}ms`,
-                        backgroundColor: isText ? textTint : "#0a1229",
-                        mixBlendMode: isText ? "screen" : "multiply",
-                        opacity: isText ? 0.5 : 0.58,
-                      }}
-                    />
-                    {isText ? (
+                    {/* Nền ảnh mẫu: phủ tối ~70% lên ô ngoài chữ; ô chữ không phủ → ảnh sáng “xuyên lỗ”. */}
+                    {!isText ? (
                       <div
                         aria-hidden
-                        className="pointer-events-none absolute inset-0"
-                        style={{
-                          background:
-                            "radial-gradient(120% 120% at 50% 45%, rgba(255,227,170,0.42) 0%, rgba(255,198,112,0.2) 45%, rgba(0,0,0,0) 85%)",
-                        }}
+                        className="pointer-events-none absolute inset-0 bg-[rgba(4,8,18,0.72)]"
                       />
                     ) : null}
                   </>

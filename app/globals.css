@@ -33,3 +33,49 @@ body {
     opacity: 1;
   }
 }
+
+/* Chuyển câu trên tường: sóng sáng lan từ tâm vùng chữ → câu mới → lắng */
+@keyframes wall-bloom-text-img {
+  0% {
+    filter: brightness(1.04) contrast(1.05) saturate(1.06);
+  }
+  55% {
+    filter: brightness(1.28) contrast(1.1) saturate(1.12);
+  }
+  100% {
+    filter: brightness(1.18) contrast(1.08) saturate(1.1);
+  }
+}
+
+@keyframes wall-settle-text-img {
+  0% {
+    filter: brightness(1.18) contrast(1.08) saturate(1.1);
+  }
+  100% {
+    filter: brightness(1.04) contrast(1.05) saturate(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phrase-wave-bloom .wall-cell--text img,
+  .phrase-wave-settle .wall-cell--text img {
+    animation: none !important;
+  }
+}
+
+.phrase-wave-bloom .wall-cell--text img {
+  animation-name: wall-bloom-text-img;
+  animation-duration: var(--wall-bloom-dur, 900ms);
+  animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  animation-fill-mode: both;
+  animation-delay: var(--wave-delay, 0ms);
+}
+
+.phrase-wave-settle .wall-cell--text img {
+  animation-name: wall-settle-text-img;
+  animation-duration: var(--wall-settle-dur, 1000ms);
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+  animation-delay: var(--wave-delay, 0ms);
+}
+
