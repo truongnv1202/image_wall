@@ -54,17 +54,20 @@ export function WallWatermark({ phrase, crossfadeMs, fontClassName }: Props) {
   }, [phrase, crossfadeMs]);
 
   const lineCount = shownLines.length;
+  /** Cỡ nền ~1/16; .wall-watermark-copy-scaled scale(16) → kích thước hiển thị gấp 16. */
   const fontSizeClass =
     lineCount >= 3
-      ? "text-[clamp(1.25rem,min(3.8vw,3.6vh),3.25rem)]"
+      ? "text-[clamp(0.078rem,min(0.238vmin,0.225vh),0.203rem)]"
       : lineCount === 2
-        ? "text-[clamp(1.75rem,min(5.2vw,5vh),5.5rem)]"
-        : "text-[clamp(2rem,min(6vw,5.5vh),6.5rem)]";
+        ? "text-[clamp(0.109rem,min(0.325vmin,0.312vh),0.344rem)]"
+        : "text-[clamp(0.125rem,min(0.375vmin,0.344vh),0.406rem)]";
+
+  const copyOpacity = opacity * 0.9;
 
   return (
     <div
       aria-hidden
-      className={`wall-watermark pointer-events-none absolute inset-0 z-[1] flex items-center justify-center overflow-hidden ${fontClassName}`}
+      className={`wall-watermark pointer-events-none absolute inset-0 z-[1] flex items-center justify-center overflow-visible ${fontClassName}`}
     >
       <div className="wall-watermark-glow" />
 
@@ -83,9 +86,9 @@ export function WallWatermark({ phrase, crossfadeMs, fontClassName }: Props) {
 
       <div className="wall-watermark-stage">
         <div
-          className="wall-watermark-copy flex flex-col items-center justify-center gap-[0.2em] text-center uppercase leading-[0.92] tracking-[0.02em]"
+          className="wall-watermark-copy wall-watermark-copy-scaled flex flex-col items-center justify-center gap-[0.2em] text-center uppercase leading-[0.92] tracking-[0.02em]"
           style={{
-            opacity,
+            opacity: copyOpacity,
             transition: `opacity ${Math.max(150, Math.min(1200, crossfadeMs / 2))}ms ease-out`,
           }}
         >
@@ -117,7 +120,7 @@ export function WallWatermark({ phrase, crossfadeMs, fontClassName }: Props) {
         </defs>
         <path
           d="M14 2 L16.5 11.5 L26 14 L16.5 16.5 L14 26 L11.5 16.5 L2 14 L11.5 11.5 Z"
-          fill="rgba(255,255,255,0.92)"
+          fill="rgba(255, 214, 130, 0.82)"
           filter="url(#wall-wm-star-glow)"
         />
       </svg>

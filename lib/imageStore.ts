@@ -26,10 +26,24 @@ export async function readImages(): Promise<ImagesPayload> {
   return parsed;
 }
 
-/** unshift URL — ảnh mới lên đầu mảng. */
+/** Chuỗi Promise để không đọc/ghi `images.json` chồng chéo (upload nhanh / song song). */
+let prependChain: Promise<void> = Promise.resolve();
+
+/** unshift URL — ảnh mới lên đầu mảng (bỏ trùng URL nếu có). */
 export async function prependImageUrl(url: string): Promise<ImagesPayload> {
-  const { images } = await readImages();
-  const next: ImagesPayload = { images: [url, ...images] };
-  await fs.writeFile(DATA_PATH, JSON.stringify(next, null, 2), "utf8");
-  return next;
+  const prev = prependChain;
+  let done!: () => void;
+  prependChain = new Promise<void>((resolve) => {
+    done = resolve;
+  });
+  await prev;
+  try {
+    const { images } = await readImages();
+    const deduped = images.filter((u) => u !== url);
+    const next: ImagesPayload = { images: [url, ...deduped] };
+    await fs.writeFile(DATA_PATH, JSON.stringify(next, null, 2), "utf8");
+    return next;
+  } finally {
+    done();
+  }
 }

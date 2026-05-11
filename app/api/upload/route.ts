@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
-import path from "path";
+import sharp from "sharp";
 
 import { prependImageUrl } from "@/lib/imageStore";
 import { rejectWithoutUploadToken } from "@/lib/uploadAuth";
+
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 export async function POST(request: Request) {
   try {
@@ -18,14 +20,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing file" }, { status: 400 });
     }
 
-    const rawName = file instanceof File ? file.name : "upload";
-    const ext = path.extname(rawName) || ".jpg";
-    const safeExt = ext.match(/^\.[a-zA-Z0-9]+$/) ? ext : ".jpg";
-    const name = `${randomUUID()}${safeExt}`;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: `File quá lớn (tối đa ${Math.round(MAX_UPLOAD_BYTES / (1024 * 1024))} MB).` },
+        { status: 400 },
+      );
+    }
+
     const uploadDir = path.join(process.cwd(), "public", "uploads");
     await mkdir(uploadDir, { recursive: true });
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(path.join(uploadDir, name), buffer);
+
+    const input = Buffer.from(await file.arrayBuffer());
+    let out: Buffer;
+    try {
+      out = await sharp(input)
+        .rotate()
+        .jpeg({ quality: 88, mozjpeg: true, chromaSubsampling: "4:4:4" })
+        .toBuffer();
+    } catch {
+      return NextResponse.json(
+        {
+          error:
+            "Không đọc được ảnh. Hãy dùng JPG, PNG, WebP, GIF hoặc định dạng mà trình duyệt thường mở được (một số máy gửi HEIC cần đổi sang JPG trước).",
+        },
+        { status: 400 },
+      );
+    }
+
+    const name = `${randomUUID()}.jpg`;
+    await writeFile(path.join(uploadDir, name), out);
 
     const publicUrl = `/uploads/${name}`;
     const data = await prependImageUrl(publicUrl);
