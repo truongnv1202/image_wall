@@ -7,6 +7,7 @@ import { prependImageUrl } from "@/lib/imageStore";
 import { normalizeUploadImage } from "@/lib/normalizeUploadImage";
 import { rejectWithoutUploadToken } from "@/lib/uploadAuth";
 import { looksLikeHeicOrHeif } from "@/lib/sniffImageFormat";
+import { normalizeUploadTokenSegment } from "@/lib/uploadPageToken";
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
@@ -15,7 +16,9 @@ export const runtime = "nodejs";
 function firstFormUploadToken(form: FormData): string | null {
   for (const key of ["uploadToken", "token"]) {
     const v = form.get(key);
-    if (typeof v === "string" && v.trim().length > 0) return v.trim();
+    if (typeof v !== "string" || v.length === 0) continue;
+    const t = normalizeUploadTokenSegment(v);
+    if (t.length > 0) return t;
   }
   return null;
 }
@@ -43,7 +46,7 @@ export async function POST(request: Request) {
     await mkdir(uploadDir, { recursive: true });
 
     const input = Buffer.from(await file.arrayBuffer());
-    const normalized = await normalizeUploadImage(input);
+    const normalized = normalizeUploadImage(input);
     if (!normalized) {
       if (looksLikeHeicOrHeif(input)) {
         return NextResponse.json(

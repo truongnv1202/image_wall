@@ -19,11 +19,20 @@ async function ensureFile(): Promise<void> {
 export async function readImages(): Promise<ImagesPayload> {
   await ensureFile();
   const raw = await fs.readFile(DATA_PATH, "utf8");
-  const parsed = JSON.parse(raw) as ImagesPayload;
-  if (!Array.isArray(parsed.images) || parsed.images.length === 0) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    console.error("[imageStore] images.json không parse được, ghi lại mặc định:", e);
+    const fallback: ImagesPayload = { images: [...DEFAULT_IMAGE_URLS] };
+    await fs.writeFile(DATA_PATH, JSON.stringify(fallback, null, 2), "utf8");
+    return fallback;
+  }
+  const payload = parsed as ImagesPayload;
+  if (!Array.isArray(payload.images) || payload.images.length === 0) {
     return { images: [...DEFAULT_IMAGE_URLS] };
   }
-  return parsed;
+  return payload;
 }
 
 /** Chuỗi Promise để không đọc/ghi `images.json` chồng chéo (upload nhanh / song song). */

@@ -1,4 +1,4 @@
-# Cùng libc (glibc) với runner bookworm-slim — `sharp` native phải khớp, tránh 500 khi upload trên Alpine build.
+# bookworm-slim (glibc) — tránh lệch libc so với Alpine khi có native deps.
 FROM node:20-bookworm-slim AS deps
 WORKDIR /app
 RUN apt-get update \

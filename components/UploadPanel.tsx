@@ -35,8 +35,15 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
           ? `/api/upload?token=${encodeURIComponent(apiUploadToken)}`
           : "/api/upload";
 
-      const res = await fetch(uploadPath, { method: "POST", body: fd, headers });
+      const res = await fetch(uploadPath, {
+        method: "POST",
+        body: fd,
+        headers,
+        cache: "no-store",
+      });
       const raw = await res.text();
+      const looksLikeHtml =
+        /^\s*</.test(raw) && /<(html|head|body|!DOCTYPE)\b/i.test(raw.slice(0, 400));
       let data = {} as { error?: string; images?: string[] };
       try {
         data = raw ? (JSON.parse(raw) as typeof data) : {};
@@ -52,6 +59,12 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
         }
         if (res.status === 413) {
           setStatus("File quá lớn (413): tăng client_max_body_size trên Nginx hoặc giảm kích thước ảnh.");
+          return;
+        }
+        if (looksLikeHtml) {
+          setStatus(
+            `Server trả HTML (${res.status}) thay vì JSON — thường là 404 proxy/CDN hoặc app chưa deploy đúng route /api/upload. Kiểm tra URL và Nginx location /api/.`,
+          );
           return;
         }
         const msg =

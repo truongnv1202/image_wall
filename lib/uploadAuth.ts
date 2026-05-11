@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getExpectedUploadToken } from "@/lib/uploadPageToken";
+import { getExpectedUploadToken, normalizeUploadTokenSegment } from "@/lib/uploadPageToken";
 
 /**
  * Trả 401 nếu cần token mà không khớp.
@@ -13,11 +13,11 @@ export function rejectWithoutUploadToken(
 ): NextResponse | null {
   const expected = getExpectedUploadToken();
   if (expected === null) return null;
-  const header = request.headers.get("x-upload-token")?.trim() ?? "";
-  const body = (bodyToken ?? "").trim();
+  const header = normalizeUploadTokenSegment(request.headers.get("x-upload-token") ?? "");
+  const body = normalizeUploadTokenSegment(bodyToken ?? "");
   let query = "";
   try {
-    query = new URL(request.url).searchParams.get("token")?.trim() ?? "";
+    query = normalizeUploadTokenSegment(new URL(request.url).searchParams.get("token") ?? "");
   } catch {
     query = "";
   }

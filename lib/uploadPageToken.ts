@@ -1,6 +1,6 @@
-/** Bỏ BOM / khoảng trắng đầu cuối (.env đôi khi lưu UTF-8 BOM). */
+/** Bỏ BOM, CR (Windows/.env), khoảng trắng đầu cuối. */
 export function normalizeUploadTokenSegment(s: string): string {
-  return s.replace(/^\uFEFF/, "").trim();
+  return s.replace(/^\uFEFF/, "").replace(/\r\n?/g, "").trim();
 }
 
 /**
