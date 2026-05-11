@@ -79,3 +79,53 @@ body {
   animation-delay: var(--wave-delay, 0ms);
 }
 
+/* Ảnh vừa upload: phóng to trong ô rồi thu về kích thước lưới; overlay nền fade vào sau. */
+@keyframes wall-new-img-scale {
+  0% {
+    transform: scale(2.45);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes wall-new-overlay-in {
+  0% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.12;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.wall-new-img-scale-entrance {
+  animation-name: wall-new-img-scale;
+  animation-duration: var(--wall-new-entrance-dur, 900ms);
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+  transform-origin: center center;
+}
+
+.wall-new-overlay-entrance {
+  animation-name: wall-new-overlay-in;
+  animation-duration: var(--wall-new-entrance-dur, 900ms);
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wall-new-img-scale-entrance,
+  .wall-new-overlay-entrance {
+    animation: none !important;
+    transform: none;
+  }
+
+  .wall-new-overlay-entrance {
+    opacity: 1;
+  }
+}
+

@@ -17,6 +17,8 @@ import type { WallTextPayload } from "@/lib/wallTextStore";
 
 const POLL_MS = 4000;
 const WALL_TEXT_POLL_MS = 10_000;
+/** Ảnh mới: thu scale + overlay vào nền (ms). */
+const NEW_IMAGE_ENTRANCE_MS = 900;
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -100,6 +102,10 @@ export function PhotoWall() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const wavePhaseRef = useRef<PhraseWavePhase>("idle");
   const nextMaskRef = useRef<boolean[][] | null>(null);
+  const prevImagesSnapshotRef = useRef<string[] | null>(null);
+  /** `window.setTimeout` trả về `number` trong DOM typings. */
+  const pendingEntranceTimersRef = useRef<number[]>([]);
+  const [newImageEntranceUrls, setNewImageEntranceUrls] = useState(() => new Set<string>());
 
   const { data } = useSWR<ImagesPayload>("/api/images", fetcher, {
     refreshInterval: POLL_MS,
@@ -140,6 +146,56 @@ export function PhotoWall() {
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
   }, []);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      setNewImageEntranceUrls(new Set());
+    }
+  }, [reducedMotion]);
+
+  useEffect(() => {
+    return () => {
+      for (const t of pendingEntranceTimersRef.current) window.clearTimeout(t);
+      pendingEntranceTimersRef.current = [];
+    };
+  }, []);
+
+  /** Phát hiện URL mới (upload prepend) để chạy hiệu ứng thu vào nền. */
+  useEffect(() => {
+    const imgs = data?.images;
+    if (!imgs?.length) return;
+    const prev = prevImagesSnapshotRef.current;
+    const unchanged =
+      prev !== null && prev.length === imgs.length && prev.every((u, i) => u === imgs[i]);
+    if (unchanged) return;
+    if (prev === null) {
+      prevImagesSnapshotRef.current = imgs.slice();
+      return;
+    }
+    const prevSet = new Set(prev);
+    const added = imgs.filter((u) => !prevSet.has(u));
+    prevImagesSnapshotRef.current = imgs.slice();
+    if (!added.length || reducedMotion) return;
+
+    setNewImageEntranceUrls((s) => {
+      const next = new Set(s);
+      for (const u of added) next.add(u);
+      return next;
+    });
+
+    for (const u of added) {
+      const tid = window.setTimeout(() => {
+        pendingEntranceTimersRef.current = pendingEntranceTimersRef.current.filter((x) => x !== tid);
+        setNewImageEntranceUrls((s) => {
+          if (!s.has(u)) return s;
+          const next = new Set(s);
+          next.delete(u);
+          return next;
+        });
+      }, NEW_IMAGE_ENTRANCE_MS) as unknown as number;
+      pendingEntranceTimersRef.current.push(tid);
+    }
+  }, [data?.images, reducedMotion]);
 
   useEffect(() => {
     setPhraseIndex((i) => i % Math.max(1, phrases.length));
@@ -255,11 +311,13 @@ export function PhotoWall() {
               gridTemplateRows: `repeat(${gridRows}, minmax(0, 1fr))`,
               ["--wall-bloom-dur" as string]: `${bloomDurMs}ms`,
               ["--wall-settle-dur" as string]: `${settleDurMs}ms`,
+              ["--wall-new-entrance-dur" as string]: `${NEW_IMAGE_ENTRANCE_MS}ms`,
             } as CSSProperties
           }
         >
           {(cells ?? Array.from({ length: gridCols * gridRows })).map((cell, i) => {
             const isText = Boolean(cell?.isText);
+            const incoming = Boolean(cell && newImageEntranceUrls.has(cell.src));
             const delayMs = cell ? (waveDelays.get(cell.key) ?? 0) : 0;
             return (
               <div
@@ -273,31 +331,43 @@ export function PhotoWall() {
               >
                 {cell ? (
                   <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={cell.src}
-                      alt=""
-                      draggable={false}
+                    <div
                       className={
-                        isText
-                          ? animating
-                            ? "h-full w-full object-contain"
-                            : `h-full w-full object-contain transition-[filter] ease-out brightness-[1.04] contrast-[1.05] saturate-[1.06]`
-                          : "h-full w-full object-contain"
+                        incoming
+                          ? "wall-new-img-scale-entrance flex h-full w-full min-h-0 min-w-0 items-center justify-center"
+                          : "flex h-full w-full min-h-0 min-w-0 items-center justify-center"
                       }
-                      style={
-                        isText && !animating
-                          ? { transitionDuration: `${Math.min(600, crossfadeMs)}ms` }
-                          : undefined
-                      }
-                      loading="lazy"
-                      decoding="async"
-                    />
-                    {/* Nền ảnh mẫu: phủ tối ~70% lên ô ngoài chữ; ô chữ không phủ → ảnh sáng “xuyên lỗ”. */}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={cell.src}
+                        alt=""
+                        draggable={false}
+                        className={
+                          isText
+                            ? animating
+                              ? "h-full w-full object-contain"
+                              : `h-full w-full object-contain transition-[filter] ease-out brightness-[1.04] contrast-[1.05] saturate-[1.06]`
+                            : "h-full w-full object-contain"
+                        }
+                        style={
+                          isText && !animating
+                            ? { transitionDuration: `${Math.min(600, crossfadeMs)}ms` }
+                            : undefined
+                        }
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    </div>
+                    {/* Nền ảnh mẫu: phủ tối ~70% lên ô ngoài chữ; ô chữ không phủ → ảnh sáng “xuyên lỗ”. Ảnh mới: overlay fade vào cùng lúc thu scale. */}
                     {!isText ? (
                       <div
                         aria-hidden
-                        className="pointer-events-none absolute inset-0 bg-[rgba(4,8,18,0.72)]"
+                        className={
+                          incoming
+                            ? "wall-new-overlay-entrance pointer-events-none absolute inset-0 bg-[rgba(4,8,18,0.72)]"
+                            : "pointer-events-none absolute inset-0 bg-[rgba(4,8,18,0.72)]"
+                        }
                       />
                     ) : null}
                   </>
