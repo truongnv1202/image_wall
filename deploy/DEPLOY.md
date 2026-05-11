@@ -13,6 +13,8 @@ export DOMAIN=trienlam.gamegiaoduc.co
 export EMAIL="you@example.com"
 ```
 
+**URL sau khi chạy app:** `/` chuyển hướng tới **`/wall`** (chỉ tường ảnh). Upload thử: **`/upload/<UPLOAD_PAGE_TOKEN>`** — token = biến môi trường **`UPLOAD_PAGE_TOKEN`** trong container (xem Phần E2). Ví dụ public: `https://${DOMAIN}/wall`.
+
 ---
 
 ## Phần B — Cài Docker (Ubuntu / Debian)
@@ -76,6 +78,21 @@ cd "$REPO_DIR"
 cd "$REPO_DIR"
 docker compose up -d --build
 ```
+
+### E2 — Token upload bí mật (khuyến nghị production)
+
+Trong **`$REPO_DIR/.env`** (cùng cấp `docker-compose.yml`, không commit):
+
+```bash
+# Chuỗi dài khó đoán, ví dụ:
+UPLOAD_PAGE_TOKEN="$(openssl rand -hex 24)"
+```
+
+Sau đó `docker compose up -d --build` (hoặc `docker compose up -d` nếu chỉ đổi env). Trang upload chỉ mở tại:
+
+`https://${DOMAIN}/upload/<giá-trị-UPLOAD_PAGE_TOKEN>`
+
+Gọi **`POST /api/upload`** từ ngoài (curl/script) khi đã bật token: thêm header **`x-upload-token: <cùng giá trị>`**. Nếu không đặt `UPLOAD_PAGE_TOKEN`: mọi đường dẫn `/upload/...` trả **404**, API upload không kiểm tra header.
 
 **Kiểm tra container và HTTP backend:**
 
@@ -212,8 +229,8 @@ Hoặc dùng `deploy/ssl/renew-reload-nginx.sh` làm `deploy_hook` / `renew_hook
 ## Phần H — Kiểm tra sau triển khai
 
 ```bash
-curl -sSIL "http://${DOMAIN}/" | head -15
-curl -sSIL "https://${DOMAIN}/" | head -15
+curl -sSIL "https://${DOMAIN}/" | head -20
+curl -sSIL "https://${DOMAIN}/wall" | head -15
 curl -sS "https://${DOMAIN}/api/images" | head -c 200
 echo
 ```
@@ -294,6 +311,7 @@ dig +short "$DOMAIN"
 | `issue-sync.sh` chạy xong mà 443 không đổi | Bản cũ ghi nhầm `/etc/nginx/sites-available/$DOMAIN` (không `.conf`). `git pull` rồi chạy lại; có thể `sudo rm -f /etc/nginx/sites-available/trienlam.gamegiaoduc.co` (file không đuôi `.conf` nếu còn sót) |
 | Upload lớn | Tăng `client_max_body_size` trong file site Nginx |
 | `duplicate upstream` | Hai file cùng định nghĩa một `upstream` — chỉ giữ một file site cho domain; upstream trong repo: `trienlam_gamegiaoduc_upstream` |
+| Upload **401 Unauthorized** | Container thiếu hoặc sai `UPLOAD_PAGE_TOKEN` so với URL `/upload/...`; hoặc curl thiếu header `x-upload-token`. |
 
 ---
 
@@ -305,10 +323,10 @@ npm install
 npm run dev
 ```
 
-Mở `http://localhost:5000` (dev mặc định cổng 5000). Production: `https://trienlam.gamegiaoduc.co`.
+Mở `http://localhost:5000/wall` (dev cổng 5000); upload dev: `http://localhost:5000/upload/dev-upload`. Production: `https://trienlam.gamegiaoduc.co/wall`.
 
 ---
 
 ## Tóm tắt một dòng
 
-**Server:** `cd /opt/image_wall && docker compose up -d --build` → (tuỳ chọn) sửa `127.0.0.1:5000:80` → copy `deploy/nginx-host/trienlam.gamegiaoduc.co.conf` → `chmod +x deploy/ssl/*.sh` → `bootstrap-http-only.sh` → `EMAIL=... issue-sync.sh`.
+**Server:** `cd /opt/image_wall` → tạo `.env` (`UPLOAD_PAGE_TOKEN=...` nếu cần upload bí mật) → `docker compose up -d --build` → (tuỳ chọn) `127.0.0.1:5000:80` → site Nginx `trienlam...conf` → `chmod +x deploy/ssl/*.sh` → `bootstrap-http-only.sh` → `EMAIL=... issue-sync.sh` → kiểm tra `https://$DOMAIN/wall`.

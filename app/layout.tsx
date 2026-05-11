@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_ORIGIN_HTTPS),
-  title: "Tường ảnh tương tác — Triển lãm",
-  description: `Lưới LED ảnh (${SITE_DOMAIN}) — mask canvas chữ HÒA BÌNH ĐẸP LẮM, polling ảnh mới.`,
+  title: "Triển lãm",
+  description: `Tường ảnh (${SITE_DOMAIN}).`,
 };
 
 export default function RootLayout({
