@@ -2,5 +2,7 @@
   "phrases": [
     "HÒA BÌNH\nĐẸP LẮM"
   ],
-  "rotateIntervalMs": 60000
+  "rotateIntervalMs": 60000,
+  "phraseCrossfadeMs": 800,
+  "displayImageCount": 1000
 }

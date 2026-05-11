@@ -5,8 +5,12 @@ import { WALL_MASK_TEXT } from "@/lib/wallConstants";
 
 export type WallTextPayload = {
   phrases: string[];
-  /** 0 = không tự động xoay; &gt; 0 = khoảng cách (ms) giữa các câu. */
+  /** 0 = không tự động xoay; &gt; 0 = thời gian mỗi câu hiển thị trước khi chuyển (ms). */
   rotateIntervalMs: number;
+  /** Độ dài hiệu ứng mờ dần khi đổi câu (ms). */
+  phraseCrossfadeMs: number;
+  /** Số ô ảnh vuông trên tường (lặp `images[i % len]` nếu ít ảnh hơn; ảnh mới ở đầu mảng). */
+  displayImageCount: number;
 };
 
 const DATA_PATH = path.join(process.cwd(), "data", "wall-text.json");
@@ -14,6 +18,8 @@ const DATA_PATH = path.join(process.cwd(), "data", "wall-text.json");
 const DEFAULT: WallTextPayload = {
   phrases: [WALL_MASK_TEXT],
   rotateIntervalMs: 60_000,
+  phraseCrossfadeMs: 800,
+  displayImageCount: 1000,
 };
 
 export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
@@ -30,7 +36,19 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
       : DEFAULT.rotateIntervalMs;
   rotateIntervalMs = Math.min(rotateIntervalMs, 24 * 60 * 60 * 1000);
 
-  return { phrases, rotateIntervalMs };
+  let phraseCrossfadeMs =
+    typeof o.phraseCrossfadeMs === "number" && Number.isFinite(o.phraseCrossfadeMs)
+      ? Math.floor(o.phraseCrossfadeMs)
+      : DEFAULT.phraseCrossfadeMs;
+  phraseCrossfadeMs = Math.min(Math.max(150, phraseCrossfadeMs), 4000);
+
+  let displayImageCount =
+    typeof o.displayImageCount === "number" && Number.isFinite(o.displayImageCount)
+      ? Math.floor(o.displayImageCount)
+      : DEFAULT.displayImageCount;
+  displayImageCount = Math.min(Math.max(1, displayImageCount), 10_000);
+
+  return { phrases, rotateIntervalMs, phraseCrossfadeMs, displayImageCount };
 }
 
 async function ensureFile(): Promise<void> {

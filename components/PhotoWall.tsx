@@ -3,16 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 
-import { notoSans } from "@/app/fonts";
 import { DEFAULT_IMAGE_URLS } from "@/lib/mockImages";
-import { buildTextMask } from "@/lib/textMask";
 import type { ImagesPayload } from "@/lib/types";
-import {
-  GRID_COLS,
-  GRID_ROWS,
-  TEXT_OVERLAY_COLORS,
-  WALL_MASK_TEXT,
-} from "@/lib/wallConstants";
+import { WALL_MASK_TEXT } from "@/lib/wallConstants";
 import type { WallTextPayload } from "@/lib/wallTextStore";
 
 const POLL_MS = 4000;
@@ -30,66 +23,17 @@ const fetcherWallText = (url: string) =>
     return r.json() as Promise<WallTextPayload>;
   });
 
-export type WallCell = {
-  key: string;
-  flatIndex: number;
-  isText: boolean;
-  textOrdinal: number;
-  src: string;
-  overlayHex: string | null;
-};
-
-function countTextCells(mask: boolean[][]): number {
-  let n = 0;
-  for (const row of mask) {
-    for (const cell of row) {
-      if (cell) n++;
-    }
+function buildSlotUrls(pool: string[], slotCount: number): string[] {
+  const len = pool.length;
+  if (len === 0) return [];
+  const out: string[] = [];
+  for (let i = 0; i < slotCount; i++) {
+    out.push(pool[i % len]);
   }
-  return n;
-}
-
-/** Ô chữ: luân phiên từ đầu mảng (ảnh mới prepend nổi bật). Ô nền: phase lệch để ưu tiên ảnh “xa đầu mảng” hơn. */
-function buildCells(mask: boolean[][], images: string[]): WallCell[] {
-  const safe = images.length > 0 ? images : DEFAULT_IMAGE_URLS;
-  const len = safe.length;
-  const textCellCount = countTextCells(mask);
-  const bgPhase = len > 1 ? Math.min(len - 1, Math.max(4, Math.floor(len * 0.12))) : 0;
-
-  const flat: WallCell[] = [];
-  let textOrdinal = 0;
-  let bgOrdinal = 0;
-  for (let r = 0; r < mask.length; r++) {
-    for (let c = 0; c < mask[r].length; c++) {
-      const flatIndex = r * GRID_COLS + c;
-      const isText = mask[r][c];
-      let src: string;
-      let overlayHex: string | null = null;
-      let textIdx = -1;
-      if (isText) {
-        textIdx = textOrdinal;
-        overlayHex = TEXT_OVERLAY_COLORS[textOrdinal % TEXT_OVERLAY_COLORS.length];
-        src = safe[textOrdinal % len];
-        textOrdinal += 1;
-      } else {
-        src = safe[(bgPhase + bgOrdinal + textCellCount) % len];
-        bgOrdinal += 1;
-      }
-      flat.push({
-        key: `${r}-${c}`,
-        flatIndex,
-        isText,
-        textOrdinal: textIdx,
-        src,
-        overlayHex,
-      });
-    }
-  }
-  return flat;
+  return out;
 }
 
 export function PhotoWall() {
-  const [mask, setMask] = useState<boolean[][] | null>(null);
   const [phraseIndex, setPhraseIndex] = useState(0);
   const { data } = useSWR<ImagesPayload>("/api/images", fetcher, {
     refreshInterval: POLL_MS,
@@ -107,11 +51,8 @@ export function PhotoWall() {
   }, [wallText]);
 
   const rotateMs = wallText?.rotateIntervalMs ?? 60_000;
-
-  const activePhrase = useMemo(
-    () => phrases[phraseIndex % phrases.length]?.trim() || WALL_MASK_TEXT,
-    [phrases, phraseIndex],
-  );
+  const crossfadeMs = wallText?.phraseCrossfadeMs ?? 800;
+  const displayCount = wallText?.displayImageCount ?? 1000;
 
   useEffect(() => {
     setPhraseIndex((i) => i % Math.max(1, phrases.length));
@@ -125,96 +66,47 @@ export function PhotoWall() {
     return () => window.clearInterval(id);
   }, [rotateMs, phrases.length]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const text = activePhrase.trim() || WALL_MASK_TEXT;
-    buildTextMask({
-      text,
-      cols: GRID_COLS,
-      rows: GRID_ROWS,
-      fontFamily: notoSans.style.fontFamily,
-    }).then((m) => {
-      if (!cancelled) setMask(m);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activePhrase]);
-
-  const imgs = data?.images?.length ? data.images : DEFAULT_IMAGE_URLS;
-  const cells = useMemo(() => {
-    if (!mask) return null;
-    return buildCells(mask, imgs);
-  }, [mask, imgs]);
-
-  const frame = (
-    <div
-      className="relative w-full max-w-[min(100vw,calc((100vh-10rem)*100/60))] overflow-hidden rounded-sm border border-zinc-800 bg-black shadow-2xl shadow-black/60"
-      style={{ aspectRatio: `${GRID_COLS} / ${GRID_ROWS}` }}
-    />
-  );
-
-  if (!cells) {
-    return (
-      <div className="flex w-full flex-col items-center gap-1 px-2">
-        {frame}
-      </div>
-    );
-  }
+  const pool = data?.images?.length ? data.images : DEFAULT_IMAGE_URLS;
+  const slotUrls = useMemo(() => buildSlotUrls(pool, displayCount), [pool, displayCount]);
 
   return (
-    <div className="flex w-full flex-col items-center gap-1 px-2">
-      <div
-        className="relative w-full max-w-[min(100vw,calc((100vh-10rem)*100/60))] overflow-hidden rounded-sm border border-zinc-800 bg-black shadow-2xl shadow-black/60"
-        style={{ aspectRatio: `${GRID_COLS} / ${GRID_ROWS}` }}
-      >
+    <div className="flex w-full flex-col items-center gap-3 px-2 py-2">
+      <div className="relative min-h-[4.5rem] w-full max-w-4xl px-2" aria-live="polite">
+        {phrases.map((text, i) => (
+          <p
+            key={i}
+            className="pointer-events-none absolute inset-x-2 top-0 whitespace-pre-line text-center text-sm leading-snug text-zinc-400 transition-opacity ease-in-out motion-reduce:transition-none"
+            style={{
+              opacity: i === phraseIndex ? 1 : 0,
+              transitionDuration: `${crossfadeMs}ms`,
+            }}
+          >
+            {text}
+          </p>
+        ))}
+      </div>
+
+      <div className="w-full max-w-[min(100vw,1920px)] rounded-sm border border-zinc-800 bg-zinc-950 p-1.5 shadow-2xl shadow-black/50 sm:p-2">
         <div
-          className="isolate grid h-full w-full gap-0"
+          className="grid gap-1 sm:gap-1.5"
           style={{
-            gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))`,
-            gridTemplateRows: `repeat(${GRID_ROWS}, minmax(0, 1fr))`,
+            gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))",
           }}
         >
-          {cells.map((cell) => (
+          {slotUrls.map((src, i) => (
             <div
-              key={cell.key}
-              className={`relative min-h-0 min-w-0 overflow-hidden opacity-0 animate-[fadeIn_0.45s_ease-out_forwards] ${
-                cell.isText
-                  ? "z-[2] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.35)]"
-                  : "z-0"
-              }`}
-              style={{
-                animationDelay: `${Math.min(cell.flatIndex * 0.0008, 0.35)}s`,
-              }}
+              key={`${src}-${i}`}
+              className="aspect-square overflow-hidden rounded-sm bg-black ring-1 ring-zinc-800/80"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={cell.src}
+                src={src}
                 alt=""
                 draggable={false}
-                className={`h-full w-full object-cover ${
-                  cell.isText
-                    ? "brightness-[1.14] contrast-[1.22] saturate-[1.12]"
-                    : "brightness-[0.62] saturate-[0.92]"
-                }`}
+                className="h-full w-full object-contain"
                 loading="lazy"
                 decoding="async"
               />
-              {cell.overlayHex ? (
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 mix-blend-overlay"
-                  style={{
-                    backgroundColor: cell.overlayHex,
-                    opacity: 0.26,
-                  }}
-                />
-              ) : (
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 bg-black/18"
-                />
-              )}
             </div>
           ))}
         </div>
