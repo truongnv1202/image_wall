@@ -15,6 +15,3 @@ export const HERO_FLY_MS = 1200;
 
 /** Khoảng cách giữa các ô (px). */
 export const STRIP_GAP_PX = 2;
-
-/** Số ô tối thiểu trong một nửa chuỗi lặp (trước khi nhân đôi cho marquee vô hạn). */
-export const STRIP_MIN_HALF_LEN = 100;

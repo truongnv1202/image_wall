@@ -34,35 +34,10 @@ body {
   }
 }
 
-/* Tường: dải ảnh trôi + mask chữ. */
+/* Tường: lưới ảnh 27×36 + mask chữ. */
 .wall-text-overlay {
   mask-type: luminance;
   -webkit-mask-type: luminance;
-}
-
-/* Hai nửa giống nhau: translate -50% = một vòng nối khít (ảnh trôi ngang). */
-@keyframes wall-marquee-shift {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-.wall-marquee-track {
-  width: max-content;
-}
-
-.wall-marquee-track.wall-marquee-animate {
-  animation: wall-marquee-shift var(--wall-marquee-dur, 80s) linear infinite;
-  will-change: transform;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .wall-marquee-track.wall-marquee-animate {
-    animation: none !important;
-  }
 }
 
 /* Popup ảnh mới → thu về góc trái trên (viewport). */

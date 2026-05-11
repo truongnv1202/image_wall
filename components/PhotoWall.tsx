@@ -7,15 +7,13 @@ import useSWR from "swr";
 import { notoSans } from "@/app/fonts";
 import { DEFAULT_IMAGE_URLS } from "@/lib/mockImages";
 import type { ImagesPayload } from "@/lib/types";
-import { HERO_FLY_MS, HERO_POPUP_MS, STRIP_GAP_PX, STRIP_MIN_HALF_LEN, STRIP_TILE_H, STRIP_TILE_W } from "@/lib/wallStripConstants";
+import { HERO_FLY_MS, HERO_POPUP_MS, STRIP_GAP_PX, STRIP_TILE_H, STRIP_TILE_W } from "@/lib/wallStripConstants";
 import { wallPhraseMaskDataUrl } from "@/lib/wallPhraseMask";
 import { WALL_MASK_TEXT } from "@/lib/wallConstants";
 import type { WallTextPayload } from "@/lib/wallTextStore";
 
 const POLL_MS = 4000;
 const WALL_TEXT_POLL_MS = 10_000;
-/** Tốc độ trôi dải ảnh (px/giây). */
-const MARQUEE_PX_PER_SEC = 38;
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -31,16 +29,10 @@ const fetcherWallText = (url: string) =>
 
 type HeroState = { url: string; phase: "popup" | "fly" } | null;
 
-function buildStripHalf(pool: string[]): string[] {
-  const safe = pool.length > 0 ? pool : DEFAULT_IMAGE_URLS;
-  const len = safe.length;
-  const half: string[] = [];
-  let i = 0;
-  while (half.length < STRIP_MIN_HALF_LEN) {
-    half.push(safe[i % len]!);
-    i++;
-  }
-  return half;
+function countTracks(axisPx: number, cellPx: number, gapPx: number): number {
+  if (axisPx <= 0 || cellPx <= 0) return 0;
+  const step = cellPx + gapPx;
+  return Math.ceil((axisPx + gapPx) / step);
 }
 
 export function PhotoWall() {
@@ -50,8 +42,8 @@ export function PhotoWall() {
   const lastGoodPoolRef = useRef<string[] | null>(null);
   const heroQueueRef = useRef<string[]>([]);
   const [hero, setHero] = useState<HeroState>(null);
-  const marqueeViewportRef = useRef<HTMLDivElement>(null);
-  const [marqueeTileWidth, setMarqueeTileWidth] = useState(STRIP_TILE_W);
+  const gridViewportRef = useRef<HTMLDivElement>(null);
+  const [gridDims, setGridDims] = useState({ cols: 48, rows: 28 });
 
   const { data } = useSWR<ImagesPayload>("/api/images", fetcher, {
     refreshInterval: POLL_MS,
@@ -81,11 +73,19 @@ export function PhotoWall() {
     return DEFAULT_IMAGE_URLS;
   }, [data?.images]);
 
-  const stripHalf = useMemo(() => buildStripHalf(pool), [pool]);
-  const stripDup = useMemo(() => [...stripHalf, ...stripHalf], [stripHalf]);
-
-  const halfWidthPx = stripHalf.length * (marqueeTileWidth + STRIP_GAP_PX);
-  const marqueeDurSec = Math.max(48, halfWidthPx / MARQUEE_PX_PER_SEC);
+  const gridCells = useMemo(() => {
+    const { cols, rows } = gridDims;
+    const n = cols * rows;
+    if (n <= 0) return [];
+    const safe = pool.length > 0 ? pool : DEFAULT_IMAGE_URLS;
+    const len = safe.length;
+    const out: { src: string; key: string }[] = [];
+    for (let i = 0; i < n; i++) {
+      const src = safe[i % len]!;
+      out.push({ src, key: `${i}-${src}` });
+    }
+    return out;
+  }, [gridDims, pool]);
 
   const displayPhrase = (phrases[phraseIndex % phrases.length] || WALL_MASK_TEXT).toUpperCase();
   const phraseMaskUrl = useMemo(
@@ -114,7 +114,7 @@ export function PhotoWall() {
     setPhraseIndex((i) => i % Math.max(1, phrases.length));
   }, [phrases]);
 
-  /** Ảnh mới: hàng chờ popup → bay góc trái trên → thumbnail 27×36 cho dải. */
+  /** Ảnh mới: hàng chờ popup → bay góc trái trên (27×36px, trùng ô lưới). */
   useEffect(() => {
     const imgs = data?.images;
     if (!imgs?.length) return;
@@ -170,13 +170,14 @@ export function PhotoWall() {
   }, [hero, finishHeroAndAdvance]);
 
   useEffect(() => {
-    const el = marqueeViewportRef.current;
+    const el = gridViewportRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const measure = () => {
+      const w = el.clientWidth;
       const h = el.clientHeight;
-      if (h <= 0) return;
-      const w = (h * STRIP_TILE_W) / STRIP_TILE_H;
-      setMarqueeTileWidth(Math.max(STRIP_TILE_W, Math.round(w)));
+      const cols = countTracks(w, STRIP_TILE_W, STRIP_GAP_PX);
+      const rows = countTracks(h, STRIP_TILE_H, STRIP_GAP_PX);
+      if (cols > 0 && rows > 0) setGridDims({ cols, rows });
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -195,43 +196,42 @@ export function PhotoWall() {
     maskPosition: "center",
   } as CSSProperties;
 
-  const marqueeStyle = {
-    ["--wall-marquee-dur" as string]: `${marqueeDurSec}s`,
+  const gridStyle = {
+    gridTemplateColumns: `repeat(${gridDims.cols}, ${STRIP_TILE_W}px)`,
+    gridAutoRows: `${STRIP_TILE_H}px`,
+    gap: STRIP_GAP_PX,
   } as CSSProperties;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1">
       <div className="relative h-full min-h-0 w-full overflow-hidden bg-[#0b1020]">
-        {/* Dải ảnh cao kín khung (100% chiều cao màn), tỉ lệ 27:36 mỗi ô; lặp pool; lazy. */}
-        <div className="absolute inset-0 z-0 flex items-stretch">
-          <div ref={marqueeViewportRef} className="wall-marquee-viewport relative h-full w-full overflow-hidden">
-            <div
-              className={`wall-marquee-track flex h-full ${!reducedMotion ? "wall-marquee-animate" : ""}`}
-              style={{ gap: STRIP_GAP_PX, ...marqueeStyle }}
-            >
-              {stripDup.map((src, i) => (
-                <div
-                  key={`${i}-${src}`}
-                  className="h-full shrink-0 overflow-hidden bg-[#0c1226]"
-                  style={{
-                    aspectRatio: `${STRIP_TILE_W} / ${STRIP_TILE_H}`,
-                    height: "100%",
-                    width: "auto",
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={src}
-                    alt=""
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                    decoding="async"
-                    sizes="(max-width: 1920px) 12vw, 240px"
-                    draggable={false}
-                  />
-                </div>
-              ))}
-            </div>
+        <div ref={gridViewportRef} className="absolute inset-0 z-0 overflow-hidden">
+          <div className="grid h-full w-full content-start justify-start" style={gridStyle}>
+            {gridCells.map(({ src, key }) => (
+              <div
+                key={key}
+                className="overflow-hidden bg-[#0c1226]"
+                style={{
+                  width: STRIP_TILE_W,
+                  height: STRIP_TILE_H,
+                  contentVisibility: "auto",
+                  containIntrinsicSize: `${STRIP_TILE_W}px ${STRIP_TILE_H}px`,
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={src}
+                  alt=""
+                  width={STRIP_TILE_W}
+                  height={STRIP_TILE_H}
+                  className="block object-cover"
+                  loading="lazy"
+                  decoding="async"
+                  sizes="27px"
+                  draggable={false}
+                />
+              </div>
+            ))}
           </div>
         </div>
 
