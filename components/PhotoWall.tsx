@@ -63,6 +63,8 @@ export function PhotoWall() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const wavePhaseRef = useRef<PhraseWavePhase>("idle");
   const prevImagesSnapshotRef = useRef<string[] | null>(null);
+  /** Giữ pool khi SWR tạm không có `data` (revalidate) để không nhảy về ảnh mặc định và mất ảnh vừa upload. */
+  const lastGoodPoolRef = useRef<string[] | null>(null);
   const pendingEntranceTimersRef = useRef<number[]>([]);
   const [newImageEntranceUrls, setNewImageEntranceUrls] = useState(() => new Set<string>());
 
@@ -203,7 +205,16 @@ export function PhotoWall() {
     return () => window.clearTimeout(t);
   }, [wavePhase, settleDurMs, reducedMotion]);
 
-  const pool = data?.images?.length ? data.images : DEFAULT_IMAGE_URLS;
+  const pool = useMemo(() => {
+    if (Array.isArray(data?.images) && data.images.length > 0) {
+      lastGoodPoolRef.current = data.images;
+      return data.images;
+    }
+    if (lastGoodPoolRef.current && lastGoodPoolRef.current.length > 0) {
+      return lastGoodPoolRef.current;
+    }
+    return DEFAULT_IMAGE_URLS;
+  }, [data?.images]);
 
   const cells = useMemo(() => buildCells(pool, gridCols, gridRows), [gridCols, gridRows, pool]);
 
@@ -276,6 +287,7 @@ export function PhotoWall() {
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
+                        key={cell.src}
                         src={cell.src}
                         alt=""
                         draggable={false}
@@ -289,7 +301,7 @@ export function PhotoWall() {
                             ? { transitionDuration: `${Math.min(600, crossfadeMs)}ms` }
                             : undefined
                         }
-                        loading="lazy"
+                        loading="eager"
                         decoding="async"
                       />
                     </div>

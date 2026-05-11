@@ -40,6 +40,8 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
         await mutate("/api/images", { images: data.images } satisfies ImagesPayload, {
           revalidate: false,
         });
+        /* Đồng bộ lại từ server — tránh cache lệch khiến tường không thấy ảnh mới. */
+        void mutate("/api/images");
       } else {
         await mutate("/api/images");
       }
