@@ -7,13 +7,22 @@ import useSWR from "swr";
 import { notoSans } from "@/app/fonts";
 import { DEFAULT_IMAGE_URLS } from "@/lib/mockImages";
 import type { ImagesPayload } from "@/lib/types";
-import { HERO_FLY_MS, HERO_POPUP_MS, STRIP_GAP_PX, STRIP_TILE_H, STRIP_TILE_W } from "@/lib/wallStripConstants";
+import {
+  HERO_FLY_MS,
+  HERO_POPUP_MS,
+  STRIP_GAP_PX,
+  STRIP_MIN_HALF_LEN,
+  STRIP_TILE_H,
+  STRIP_TILE_W,
+} from "@/lib/wallStripConstants";
 import { wallPhraseMaskDataUrl } from "@/lib/wallPhraseMask";
 import { WALL_MASK_TEXT } from "@/lib/wallConstants";
 import type { WallTextPayload } from "@/lib/wallTextStore";
 
 const POLL_MS = 4000;
 const WALL_TEXT_POLL_MS = 10_000;
+/** Tốc độ trôi mỗi dải (px/giây), tính theo nửa chuỗi lặp. */
+const MARQUEE_PX_PER_SEC = 38;
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -42,8 +51,8 @@ export function PhotoWall() {
   const lastGoodPoolRef = useRef<string[] | null>(null);
   const heroQueueRef = useRef<string[]>([]);
   const [hero, setHero] = useState<HeroState>(null);
-  const gridViewportRef = useRef<HTMLDivElement>(null);
-  const [gridDims, setGridDims] = useState({ cols: 48, rows: 28 });
+  const wallViewportRef = useRef<HTMLDivElement>(null);
+  const [viewportSize, setViewportSize] = useState({ w: 1200, h: 800 });
 
   const { data } = useSWR<ImagesPayload>("/api/images", fetcher, {
     refreshInterval: POLL_MS,
@@ -73,19 +82,29 @@ export function PhotoWall() {
     return DEFAULT_IMAGE_URLS;
   }, [data?.images]);
 
-  const gridCells = useMemo(() => {
-    const { cols, rows } = gridDims;
-    const n = cols * rows;
-    if (n <= 0) return [];
+  const rows = useMemo(
+    () => countTracks(viewportSize.h, STRIP_TILE_H, STRIP_GAP_PX),
+    [viewportSize.h],
+  );
+
+  const tilesPerHalf = useMemo(() => {
+    const cols = countTracks(viewportSize.w, STRIP_TILE_W, STRIP_GAP_PX);
+    return Math.max(STRIP_MIN_HALF_LEN, cols);
+  }, [viewportSize.w]);
+
+  const segmentWidthPx =
+    tilesPerHalf * STRIP_TILE_W + Math.max(0, tilesPerHalf - 1) * STRIP_GAP_PX;
+  const marqueeDurSec = Math.max(48, segmentWidthPx / MARQUEE_PX_PER_SEC);
+
+  const rowHalves = useMemo(() => {
+    if (rows <= 0 || tilesPerHalf <= 0) return [];
     const safe = pool.length > 0 ? pool : DEFAULT_IMAGE_URLS;
     const len = safe.length;
-    const out: { src: string; key: string }[] = [];
-    for (let i = 0; i < n; i++) {
-      const src = safe[i % len]!;
-      out.push({ src, key: `${i}-${src}` });
-    }
-    return out;
-  }, [gridDims, pool]);
+    return Array.from({ length: rows }, (_, row) => {
+      const offset = row * 17;
+      return Array.from({ length: tilesPerHalf }, (_, i) => safe[(offset + i) % len]!);
+    });
+  }, [rows, tilesPerHalf, pool]);
 
   const displayPhrase = (phrases[phraseIndex % phrases.length] || WALL_MASK_TEXT).toUpperCase();
   const phraseMaskUrl = useMemo(
@@ -170,14 +189,12 @@ export function PhotoWall() {
   }, [hero, finishHeroAndAdvance]);
 
   useEffect(() => {
-    const el = gridViewportRef.current;
+    const el = wallViewportRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const measure = () => {
       const w = el.clientWidth;
       const h = el.clientHeight;
-      const cols = countTracks(w, STRIP_TILE_W, STRIP_GAP_PX);
-      const rows = countTracks(h, STRIP_TILE_H, STRIP_GAP_PX);
-      if (cols > 0 && rows > 0) setGridDims({ cols, rows });
+      if (w > 0 && h > 0) setViewportSize({ w, h });
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -196,43 +213,57 @@ export function PhotoWall() {
     maskPosition: "center",
   } as CSSProperties;
 
-  const gridStyle = {
-    gridTemplateColumns: `repeat(${gridDims.cols}, ${STRIP_TILE_W}px)`,
-    gridAutoRows: `${STRIP_TILE_H}px`,
-    gap: STRIP_GAP_PX,
+  const marqueeStyle = {
+    ["--wall-marquee-dur" as string]: `${marqueeDurSec}s`,
   } as CSSProperties;
+
+  const trackClass = `wall-marquee-track flex h-full shrink-0 items-stretch ${
+    !reducedMotion ? "wall-marquee-animate wall-marquee-animate--ltr" : ""
+  }`;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1">
       <div className="relative h-full min-h-0 w-full overflow-hidden bg-[#0b1020]">
-        <div ref={gridViewportRef} className="absolute inset-0 z-0 overflow-hidden">
-          <div className="grid h-full w-full content-start justify-start" style={gridStyle}>
-            {gridCells.map(({ src, key }) => (
-              <div
-                key={key}
-                className="overflow-hidden bg-[#0c1226]"
-                style={{
-                  width: STRIP_TILE_W,
-                  height: STRIP_TILE_H,
-                  contentVisibility: "auto",
-                  containIntrinsicSize: `${STRIP_TILE_W}px ${STRIP_TILE_H}px`,
-                }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={src}
-                  alt=""
-                  width={STRIP_TILE_W}
-                  height={STRIP_TILE_H}
-                  className="block object-cover"
-                  loading="lazy"
-                  decoding="async"
-                  sizes="27px"
-                  draggable={false}
-                />
+        <div
+          ref={wallViewportRef}
+          className="absolute inset-0 z-0 flex min-h-0 min-w-0 flex-col overflow-hidden"
+          style={{ gap: STRIP_GAP_PX }}
+        >
+          {rowHalves.map((half, row) => (
+            <div
+              key={row}
+              className="min-h-0 w-full shrink-0 overflow-hidden"
+              style={{ height: STRIP_TILE_H }}
+            >
+              <div className={trackClass} style={{ gap: STRIP_GAP_PX, ...marqueeStyle }}>
+                {[...half, ...half].map((src, i) => (
+                  <div
+                    key={`${row}-${i}`}
+                    className="shrink-0 overflow-hidden bg-[#0c1226]"
+                    style={{
+                      width: STRIP_TILE_W,
+                      height: STRIP_TILE_H,
+                      contentVisibility: "auto",
+                      containIntrinsicSize: `${STRIP_TILE_W}px ${STRIP_TILE_H}px`,
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={src}
+                      alt=""
+                      width={STRIP_TILE_W}
+                      height={STRIP_TILE_H}
+                      className="block object-cover"
+                      loading="lazy"
+                      decoding="async"
+                      sizes="27px"
+                      draggable={false}
+                    />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
 
         <div
@@ -255,8 +286,11 @@ export function PhotoWall() {
               <img
                 src={hero.url}
                 alt=""
-                className="h-full w-full object-contain"
+                className={`h-full w-full ${
+                  hero.phase === "popup" ? "object-contain" : "object-cover"
+                }`}
                 decoding="async"
+                fetchPriority="high"
               />
             </div>
           </div>

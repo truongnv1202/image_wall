@@ -34,10 +34,40 @@ body {
   }
 }
 
-/* Tường: lưới ảnh 27×36 + mask chữ. */
+/* Tường: nhiều dải ảnh 27×36 trôi ngang + mask chữ. */
 .wall-text-overlay {
   mask-type: luminance;
   -webkit-mask-type: luminance;
+}
+
+/* Hai nửa giống nhau: translate -50% = một vòng nối khít. */
+@keyframes wall-marquee-shift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.wall-marquee-track {
+  width: max-content;
+}
+
+.wall-marquee-track.wall-marquee-animate {
+  animation: wall-marquee-shift var(--wall-marquee-dur, 80s) linear infinite;
+  will-change: transform;
+}
+
+/* Trôi theo chiều trái → phải (đảo hướng so với mặc định). */
+.wall-marquee-track.wall-marquee-animate--ltr {
+  animation-direction: reverse;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wall-marquee-track.wall-marquee-animate {
+    animation: none !important;
+  }
 }
 
 /* Popup ảnh mới → thu về góc trái trên (viewport). */
