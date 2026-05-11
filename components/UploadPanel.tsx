@@ -31,7 +31,9 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
         images?: string[];
       };
       if (!res.ok) {
-        setStatus(typeof data.error === "string" ? data.error : "Upload thất bại");
+        const msg =
+          typeof data.error === "string" ? data.error : `Upload thất bại (HTTP ${res.status})`;
+        setStatus(msg);
         return;
       }
       if (Array.isArray(data.images)) {

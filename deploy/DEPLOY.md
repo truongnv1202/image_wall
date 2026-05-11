@@ -312,6 +312,7 @@ dig +short "$DOMAIN"
 | Upload lớn | Tăng `client_max_body_size` trong file site Nginx |
 | `duplicate upstream` | Hai file cùng định nghĩa một `upstream` — chỉ giữ một file site cho domain; upstream trong repo: `trienlam_gamegiaoduc_upstream` |
 | Upload **401 Unauthorized** | Container thiếu hoặc sai `UPLOAD_PAGE_TOKEN` so với URL `/upload/...`; hoặc curl thiếu header `x-upload-token`. |
+| Upload **500** / “Không ghi được” | Bản image cũ: volume `data`/`uploads` quyền root. `git pull` + `docker compose build --no-cache web` + `up -d` (entrypoint `chown` trong image mới). |
 
 ---
 
