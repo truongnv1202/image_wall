@@ -34,10 +34,7 @@ export async function POST(request: Request) {
     const input = Buffer.from(await file.arrayBuffer());
     let out: Buffer;
     try {
-      out = await sharp(input)
-        .rotate()
-        .jpeg({ quality: 88, mozjpeg: true, chromaSubsampling: "4:4:4" })
-        .toBuffer();
+      out = await sharp(input).rotate().jpeg({ quality: 88 }).toBuffer();
     } catch {
       return NextResponse.json(
         {
