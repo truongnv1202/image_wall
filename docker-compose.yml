@@ -1,0 +1,33 @@
+# Triển khai khuyến nghị: clone/copy project vào /opt/image_wall rồi:
+#   cd /opt/image_wall && docker compose up -d --build
+# Truy cập HTTP qua cổng host (mặc định 5000). Bỏ comment các dòng cổng phụ nếu cần bind thêm 5001–5003.
+
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    volumes:
+      - pools-data:/app/data
+      - uploads-data:/app/public/uploads
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      # Truy cập trực tiếp: "5000:80". Khi dùng Nginx trên host (file deploy/nginx-host/*): đổi thành
+      # "127.0.0.1:5000:80" để chỉ reverse-proxy từ host, không public cổng 5000.
+      - "5000:80"
+      # Nếu cần mở thêm (cùng một Nginx, cùng upstream web):
+      # - "5001:80"
+      # - "5002:80"
+      # - "5003:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - web
+
+volumes:
+  pools-data:
+  uploads-data:
