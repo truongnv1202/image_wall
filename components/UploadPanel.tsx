@@ -25,23 +25,41 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
       fd.set("file", file);
       if (apiUploadToken) {
         fd.set("uploadToken", apiUploadToken);
+        fd.set("token", apiUploadToken);
       }
       const headers: HeadersInit = {};
       if (apiUploadToken) headers["x-upload-token"] = apiUploadToken;
-      const res = await fetch("/api/upload", { method: "POST", body: fd, headers });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        images?: string[];
-      };
+
+      const uploadPath =
+        apiUploadToken != null && apiUploadToken.length > 0
+          ? `/api/upload?token=${encodeURIComponent(apiUploadToken)}`
+          : "/api/upload";
+
+      const res = await fetch(uploadPath, { method: "POST", body: fd, headers });
+      const raw = await res.text();
+      let data = {} as { error?: string; images?: string[] };
+      try {
+        data = raw ? (JSON.parse(raw) as typeof data) : {};
+      } catch {
+        data = {};
+      }
       if (!res.ok) {
         if (res.status === 401) {
           setStatus(
-            "Không được phép (401): thiếu hoặc sai header x-upload-token — URL phải là /upload/<UPLOAD_PAGE_TOKEN> và cùng giá trị trong .env container.",
+            "Không được phép (401): token không khớp UPLOAD_PAGE_TOKEN trên server (kiểm tra .env / Docker, không có BOM hay dấu ngoặc kép thừa).",
           );
           return;
         }
+        if (res.status === 413) {
+          setStatus("File quá lớn (413): tăng client_max_body_size trên Nginx hoặc giảm kích thước ảnh.");
+          return;
+        }
         const msg =
-          typeof data.error === "string" ? data.error : `Upload thất bại (HTTP ${res.status})`;
+          typeof data.error === "string" && data.error.length > 0
+            ? data.error
+            : raw.length > 0 && raw.length < 500
+              ? raw
+              : `Upload thất bại (HTTP ${res.status})`;
         setStatus(msg);
         return;
       }

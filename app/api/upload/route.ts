@@ -6,18 +6,24 @@ import path from "path";
 import { prependImageUrl } from "@/lib/imageStore";
 import { normalizeUploadImage } from "@/lib/normalizeUploadImage";
 import { rejectWithoutUploadToken } from "@/lib/uploadAuth";
+import { looksLikeHeicOrHeif } from "@/lib/sniffImageFormat";
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
-function formUploadToken(form: FormData): string | null {
-  const v = form.get("uploadToken");
-  return typeof v === "string" ? v.trim() : null;
+export const runtime = "nodejs";
+
+function firstFormUploadToken(form: FormData): string | null {
+  for (const key of ["uploadToken", "token"]) {
+    const v = form.get(key);
+    if (typeof v === "string" && v.trim().length > 0) return v.trim();
+  }
+  return null;
 }
 
 export async function POST(request: Request) {
   try {
     const form = await request.formData();
-    const denied = rejectWithoutUploadToken(request, formUploadToken(form));
+    const denied = rejectWithoutUploadToken(request, firstFormUploadToken(form));
     if (denied) return denied;
 
     const file = form.get("file");
@@ -39,10 +45,21 @@ export async function POST(request: Request) {
     const input = Buffer.from(await file.arrayBuffer());
     const normalized = await normalizeUploadImage(input);
     if (!normalized) {
+      if (looksLikeHeicOrHeif(input)) {
+        return NextResponse.json(
+          {
+            error:
+              "Ảnh HEIC/HEIF (thường từ iPhone). Hãy đổi sang JPG/PNG trong Ảnh rồi upload lại, hoặc chụp/chọn định dạng tương thích.",
+            code: "HEIC",
+          },
+          { status: 400 },
+        );
+      }
       return NextResponse.json(
         {
           error:
-            "Không đọc được ảnh. Hãy gửi JPG, PNG, WebP hoặc GIF (HEIC: đổi sang JPG trước khi gửi).",
+            "Không đọc được ảnh. Hãy gửi JPG, PNG, WebP hoặc GIF (file hỏng hoặc không phải ảnh).",
+          code: "BAD_FORMAT",
         },
         { status: 400 },
       );

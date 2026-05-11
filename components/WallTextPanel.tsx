@@ -49,7 +49,8 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       const phraseCrossfadeMs = Math.min(4000, Math.max(150, Math.round(Number(crossfadeMs)) || 800));
       const nextGridCols = Math.min(240, Math.max(10, Math.floor(Number(gridCols)) || 100));
       const nextGridRows = Math.min(140, Math.max(6, Math.floor(Number(gridRows)) || 60));
-      const res = await fetch("/api/wall-text", {
+      const wallTextUrl = `/api/wall-text?token=${encodeURIComponent(apiUploadToken)}`;
+      const res = await fetch(wallTextUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

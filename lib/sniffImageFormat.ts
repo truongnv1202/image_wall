@@ -1,3 +1,11 @@
+/** HEIC/HEIF (iPhone) — server không chuyển được nếu không có libheif. */
+export function looksLikeHeicOrHeif(buf: Buffer): boolean {
+  if (buf.length < 12) return false;
+  if (buf.toString("ascii", 4, 8) !== "ftyp") return false;
+  const brand = buf.toString("ascii", 8, 12).toLowerCase();
+  return /^(heic|heix|hevc|mif1|msf1)/.test(brand);
+}
+
 /** Trả phần mở rộng file an toàn nếu buffer giống ảnh phổ biến; không đoán khi không khớp. */
 export function sniffImageExtension(buf: Buffer): ".jpg" | ".png" | ".webp" | ".gif" | null {
   if (buf.length < 12) return null;
