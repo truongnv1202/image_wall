@@ -1,28 +1,18 @@
 "use client";
 
-import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import { notoSans } from "@/app/fonts";
 import { DEFAULT_IMAGE_URLS } from "@/lib/mockImages";
 import type { ImagesPayload } from "@/lib/types";
-import {
-  HERO_FLY_MS,
-  HERO_POPUP_MS,
-  STRIP_GAP_PX,
-  STRIP_MIN_HALF_LEN,
-  STRIP_TILE_H,
-  STRIP_TILE_W,
-} from "@/lib/wallStripConstants";
+import { HERO_FLY_MS, HERO_POPUP_MS, STRIP_GAP_PX, STRIP_TILE_H, STRIP_TILE_W } from "@/lib/wallStripConstants";
 import { WallWatermark } from "@/components/WallWatermark";
 import { WALL_MASK_TEXT } from "@/lib/wallConstants";
 import type { WallTextPayload } from "@/lib/wallTextStore";
 
 const POLL_MS = 4000;
 const WALL_TEXT_POLL_MS = 10_000;
-/** Tốc độ trôi mỗi dải (px/giây), tính theo nửa chuỗi lặp. */
-const MARQUEE_PX_PER_SEC = 38;
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -87,24 +77,21 @@ export function PhotoWall() {
     [viewportSize.h],
   );
 
-  const tilesPerHalf = useMemo(() => {
-    const cols = countTracks(viewportSize.w, STRIP_TILE_W, STRIP_GAP_PX);
-    return Math.max(STRIP_MIN_HALF_LEN, cols);
-  }, [viewportSize.w]);
+  /** Số ô theo chiều ngang vừa khít viewport — không lặp đôi / không marquee (nhẹ máy yếu). */
+  const tilesPerRow = useMemo(
+    () => countTracks(viewportSize.w, STRIP_TILE_W, STRIP_GAP_PX),
+    [viewportSize.w],
+  );
 
-  const segmentWidthPx =
-    tilesPerHalf * STRIP_TILE_W + Math.max(0, tilesPerHalf - 1) * STRIP_GAP_PX;
-  const marqueeDurSec = Math.max(48, segmentWidthPx / MARQUEE_PX_PER_SEC);
-
-  const rowHalves = useMemo(() => {
-    if (rows <= 0 || tilesPerHalf <= 0) return [];
+  const rowTiles = useMemo(() => {
+    if (rows <= 0 || tilesPerRow <= 0) return [];
     const safe = pool.length > 0 ? pool : DEFAULT_IMAGE_URLS;
     const len = safe.length;
     return Array.from({ length: rows }, (_, row) => {
       const offset = row * 17;
-      return Array.from({ length: tilesPerHalf }, (_, i) => safe[(offset + i) % len]!);
+      return Array.from({ length: tilesPerRow }, (_, i) => safe[(offset + i) % len]!);
     });
-  }, [rows, tilesPerHalf, pool]);
+  }, [rows, tilesPerRow, pool]);
 
   const displayPhrase = (phrases[phraseIndex % phrases.length] || WALL_MASK_TEXT).toUpperCase();
   useEffect(() => {
@@ -197,14 +184,6 @@ export function PhotoWall() {
     return () => ro.disconnect();
   }, []);
 
-  const marqueeStyle = {
-    ["--wall-marquee-dur" as string]: `${marqueeDurSec}s`,
-  } as CSSProperties;
-
-  const trackClass = `wall-marquee-track flex h-full shrink-0 items-stretch ${
-    !reducedMotion ? "wall-marquee-animate wall-marquee-animate--ltr" : ""
-  }`;
-
   return (
     <div className="flex h-full min-h-0 w-full flex-1">
       <div className="relative h-full min-h-0 w-full overflow-hidden bg-[#0b1020]">
@@ -213,14 +192,14 @@ export function PhotoWall() {
           className="absolute inset-0 z-0 flex min-h-0 min-w-0 flex-col overflow-hidden"
           style={{ gap: STRIP_GAP_PX }}
         >
-          {rowHalves.map((half, row) => (
+          {rowTiles.map((tiles, row) => (
             <div
               key={row}
               className="min-h-0 w-full shrink-0 overflow-hidden"
               style={{ height: STRIP_TILE_H }}
             >
-              <div className={trackClass} style={{ gap: STRIP_GAP_PX, ...marqueeStyle }}>
-                {[...half, ...half].map((src, i) => (
+              <div className="flex h-full w-full min-w-0 flex-nowrap items-stretch" style={{ gap: STRIP_GAP_PX }}>
+                {tiles.map((src, i) => (
                   <div
                     key={`${row}-${i}`}
                     className="shrink-0 overflow-hidden bg-[#0c1226]"
