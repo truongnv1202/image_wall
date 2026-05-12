@@ -7,6 +7,7 @@ import {
   WALL_GRAPHIC_B,
   WALL_GRAPHIC_BLEND_MS,
   WALL_GRAPHIC_CYCLE_MS,
+  WALL_GRAPHIC_REST_AFTER_BOTH_MS,
 } from "@/lib/wallGraphicUrls";
 
 type Props = {
@@ -14,15 +15,38 @@ type Props = {
 };
 
 /**
- * Hai ảnh thay phiên, crossfade + mix-blend lên lưới ảnh phía dưới (không còn chữ).
+ * Hai ảnh: A → B → nghỉ → A → … Crossfade + mix-blend lên lưới phía dưới.
  */
 export function WallGraphicBlend({ reducedMotion }: Props) {
   const [showFirst, setShowFirst] = useState(true);
 
   useEffect(() => {
     if (reducedMotion) return;
-    const id = window.setInterval(() => setShowFirst((v) => !v), WALL_GRAPHIC_CYCLE_MS);
-    return () => window.clearInterval(id);
+    const ids: number[] = [];
+    let alive = true;
+    const later = (ms: number, fn: () => void) => {
+      const id = window.setTimeout(() => {
+        if (!alive) return;
+        fn();
+      }, ms);
+      ids.push(id);
+    };
+    const cycleFromA = () => {
+      setShowFirst(true);
+      later(WALL_GRAPHIC_CYCLE_MS, () => {
+        setShowFirst(false);
+        later(WALL_GRAPHIC_CYCLE_MS, () => {
+          later(WALL_GRAPHIC_REST_AFTER_BOTH_MS, () => {
+            cycleFromA();
+          });
+        });
+      });
+    };
+    cycleFromA();
+    return () => {
+      alive = false;
+      for (const id of ids) window.clearTimeout(id);
+    };
   }, [reducedMotion]);
 
   const durMs = reducedMotion ? 0 : WALL_GRAPHIC_BLEND_MS;
