@@ -1,10 +1,12 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   WALL_OVERLAY_BLEND_MS,
   WALL_OVERLAY_DISPLAY_MS,
+  WALL_OVERLAY_MIX_BLEND_MODE,
   WALL_OVERLAY_STACK_OPACITY,
   WALL_OVERLAY_URLS,
 } from "@/lib/wallOverlayConstants";
@@ -13,8 +15,13 @@ type Props = {
   reducedMotion: boolean;
 };
 
+const blendLayerStyle = {
+  mixBlendMode: WALL_OVERLAY_MIX_BLEND_MODE,
+} satisfies CSSProperties;
+
 /**
- * Hai ảnh PNG luân phiên: lớp dưới / lớp trên crossfade opacity (blend mềm lên tường ảnh).
+ * Hai ảnh luân phiên: phủ kín tường (`object-cover`) + crossfade opacity,
+ * `mix-blend-mode` để hòa vào lưới ảnh phía dưới.
  */
 export function WallImageBlend({ reducedMotion }: Props) {
   const [baseIdx, setBaseIdx] = useState(0);
@@ -64,15 +71,15 @@ export function WallImageBlend({ reducedMotion }: Props) {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center overflow-visible"
+      className="pointer-events-none absolute inset-0 z-[1] overflow-hidden"
       style={{ opacity: WALL_OVERLAY_STACK_OPACITY }}
     >
-      <div className="wall-overlay-stage relative">
+      <div className="absolute inset-0" style={blendLayerStyle}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={urls[baseIdx]}
           alt=""
-          className="absolute inset-0 block h-full w-full object-contain"
+          className="absolute inset-0 block h-full w-full min-h-full min-w-full object-cover"
           style={{
             opacity: reducedMotion ? 1 : 1 - blend,
             transition: reducedMotion ? undefined : `opacity ${transitionMs}ms ease-in-out`,
@@ -83,7 +90,7 @@ export function WallImageBlend({ reducedMotion }: Props) {
         <img
           src={urls[topIdx]}
           alt=""
-          className="absolute inset-0 block h-full w-full object-contain"
+          className="absolute inset-0 block h-full w-full min-h-full min-w-full object-cover"
           style={{
             opacity: reducedMotion ? 0 : blend,
             transition: reducedMotion ? undefined : `opacity ${transitionMs}ms ease-in-out`,

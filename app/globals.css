@@ -34,20 +34,6 @@ body {
   }
 }
 
-/* Khung overlay ảnh title (16:9), căn giữa — blend lên lưới ảnh. */
-.wall-overlay-stage {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  width: min(100vw, calc(100vh * 16 / 9));
-  height: min(100vh, calc(100vw * 9 / 16));
-  max-width: 1920px;
-  max-height: 1080px;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-}
-
 /* Popup ảnh mới → thu về góc trái trên (viewport). */
 .wall-hero-card {
   position: fixed;

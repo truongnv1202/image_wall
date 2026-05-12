@@ -10,5 +10,11 @@ export const WALL_OVERLAY_DISPLAY_MS = 10_000;
 /** Độ dài crossfade (opacity). */
 export const WALL_OVERLAY_BLEND_MS = 1_200;
 
-/** Độ mờ toàn lớp overlay so lưới ảnh vẫn lộ nhẹ (0–1). */
-export const WALL_OVERLAY_STACK_OPACITY = 0.92;
+/** Độ mạnh toàn lớp overlay (0–1); với `mix-blend-mode` thường để ~1. */
+export const WALL_OVERLAY_STACK_OPACITY = 1;
+
+/**
+ * Hòa overlay vào lưới ảnh bên dưới (full tường + object-cover).
+ * Có thể đổi: `soft-light` | `overlay` | `screen` | `multiply` | `hard-light` …
+ */
+export const WALL_OVERLAY_MIX_BLEND_MODE = "soft-light" as const;
