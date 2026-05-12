@@ -7,49 +7,65 @@ import {
   WALL_GRAPHIC_B,
   WALL_GRAPHIC_BLEND_MS,
   WALL_GRAPHIC_CYCLE_MS,
-  WALL_GRAPHIC_REST_AFTER_BOTH_MS,
+  WALL_GRAPHIC_IDLE_MS,
 } from "@/lib/wallGraphicUrls";
 
 type Props = {
   reducedMotion: boolean;
 };
 
+type Phase = "a" | "b" | "hidden";
+
 /**
- * Hai ảnh: A → B → nghỉ → A → … Crossfade + mix-blend lên lưới phía dưới.
+ * Hai ảnh thay phiên (A → B), rồi ẩn cả hai, nghỉ `WALL_GRAPHIC_IDLE_MS`, lặp lại từ A.
  */
 export function WallGraphicBlend({ reducedMotion }: Props) {
-  const [showFirst, setShowFirst] = useState(true);
+  const [phase, setPhase] = useState<Phase>("a");
 
   useEffect(() => {
-    if (reducedMotion) return;
-    const ids: number[] = [];
-    let alive = true;
-    const later = (ms: number, fn: () => void) => {
-      const id = window.setTimeout(() => {
-        if (!alive) return;
-        fn();
-      }, ms);
-      ids.push(id);
+    if (reducedMotion) {
+      setPhase("a");
+      return;
+    }
+
+    let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const push = (t: ReturnType<typeof setTimeout>) => {
+      timers.push(t);
     };
-    const cycleFromA = () => {
-      setShowFirst(true);
-      later(WALL_GRAPHIC_CYCLE_MS, () => {
-        setShowFirst(false);
-        later(WALL_GRAPHIC_CYCLE_MS, () => {
-          later(WALL_GRAPHIC_REST_AFTER_BOTH_MS, () => {
-            cycleFromA();
-          });
-        });
-      });
+
+    const runCycle = () => {
+      setPhase("a");
+      push(
+        setTimeout(() => {
+          if (cancelled) return;
+          setPhase("b");
+          push(
+            setTimeout(() => {
+              if (cancelled) return;
+              setPhase("hidden");
+              push(
+                setTimeout(() => {
+                  if (cancelled) return;
+                  runCycle();
+                }, WALL_GRAPHIC_IDLE_MS),
+              );
+            }, WALL_GRAPHIC_CYCLE_MS),
+          );
+        }, WALL_GRAPHIC_CYCLE_MS),
+      );
     };
-    cycleFromA();
+
+    runCycle();
     return () => {
-      alive = false;
-      for (const id of ids) window.clearTimeout(id);
+      cancelled = true;
+      timers.forEach(clearTimeout);
     };
   }, [reducedMotion]);
 
   const durMs = reducedMotion ? 0 : WALL_GRAPHIC_BLEND_MS;
+  const opacityA = phase === "a" ? 1 : 0;
+  const opacityB = phase === "b" ? 1 : 0;
 
   return (
     <div
@@ -67,7 +83,10 @@ export function WallGraphicBlend({ reducedMotion }: Props) {
       >
         <div
           className="absolute inset-0 mix-blend-soft-light"
-          style={{ opacity: 0.9 }}
+          style={{
+            opacity: phase === "hidden" ? 0 : 0.9,
+            transition: `opacity ${durMs}ms ease-in-out`,
+          }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -75,9 +94,9 @@ export function WallGraphicBlend({ reducedMotion }: Props) {
             alt=""
             className="absolute inset-0 h-full w-full object-contain"
             style={{
-              opacity: showFirst ? 1 : 0,
+              opacity: opacityA,
               transition: `opacity ${durMs}ms ease-in-out`,
-              zIndex: showFirst ? 2 : 1,
+              zIndex: phase === "a" ? 2 : 1,
             }}
             draggable={false}
             decoding="async"
@@ -88,9 +107,9 @@ export function WallGraphicBlend({ reducedMotion }: Props) {
             alt=""
             className="absolute inset-0 h-full w-full object-contain"
             style={{
-              opacity: showFirst ? 0 : 1,
+              opacity: opacityB,
               transition: `opacity ${durMs}ms ease-in-out`,
-              zIndex: showFirst ? 1 : 2,
+              zIndex: phase === "b" ? 2 : 1,
             }}
             draggable={false}
             decoding="async"
