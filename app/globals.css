@@ -34,7 +34,7 @@ body {
   }
 }
 
-/* Popup ảnh mới → thu về góc trái trên (viewport). */
+/* Hero ảnh mới (popup → thu về ô góc). */
 .wall-hero-card {
   position: fixed;
   transition:

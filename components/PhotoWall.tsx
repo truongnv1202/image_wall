@@ -1,14 +1,12 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
-import { useMaskLuminance } from "@/hooks/useMaskLuminance";
-import { mosaicCssFilter, smoothMaskWeight } from "@/lib/mosaicTileStyle";
 import { DEFAULT_IMAGE_URLS } from "@/lib/mockImages";
 import type { ImagesPayload } from "@/lib/types";
-import { WALL_OVERLAY_DISPLAY_MS, WALL_OVERLAY_URLS } from "@/lib/wallOverlayConstants";
 import { HERO_FLY_MS, HERO_POPUP_MS, STRIP_GAP_PX, STRIP_TILE_H, STRIP_TILE_W } from "@/lib/wallStripConstants";
+import { WallGraphicBlend } from "@/components/WallGraphicBlend";
 
 const POLL_MS = 4000;
 
@@ -26,52 +24,8 @@ function countTracks(axisPx: number, cellPx: number, gapPx: number): number {
   return Math.ceil((axisPx + gapPx) / step);
 }
 
-const WallMosaicCell = memo(function WallMosaicCell({
-  src,
-  tileW,
-  tileH,
-  rawLuma,
-}: {
-  src: string;
-  tileW: number;
-  tileH: number;
-  rawLuma: number | null;
-}) {
-  const filter = useMemo(() => {
-    const m = rawLuma == null ? 0.35 : smoothMaskWeight(rawLuma);
-    return mosaicCssFilter(m);
-  }, [rawLuma]);
-
-  return (
-    <div
-      className="shrink-0 overflow-hidden bg-[#0c1226]"
-      style={{
-        width: tileW,
-        height: tileH,
-        contentVisibility: "auto",
-        containIntrinsicSize: `${tileW}px ${tileH}px`,
-      }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt=""
-        width={tileW}
-        height={tileH}
-        className="block h-full w-full object-cover"
-        style={{ filter }}
-        loading="lazy"
-        decoding="async"
-        sizes="27px"
-        draggable={false}
-      />
-    </div>
-  );
-});
-
 export function PhotoWall() {
   const [reducedMotion, setReducedMotion] = useState(false);
-  const [maskIdx, setMaskIdx] = useState(0);
   const prevImagesSnapshotRef = useRef<string[] | null>(null);
   const lastGoodPoolRef = useRef<string[] | null>(null);
   const heroQueueRef = useRef<string[]>([]);
@@ -100,18 +54,11 @@ export function PhotoWall() {
     [viewportSize.h],
   );
 
+  /** Số ô theo chiều ngang vừa khít viewport — không lặp đôi / không marquee (nhẹ máy yếu). */
   const tilesPerRow = useMemo(
     () => countTracks(viewportSize.w, STRIP_TILE_W, STRIP_GAP_PX),
     [viewportSize.w],
   );
-
-  const maskUrl = useMemo(() => {
-    const urls = WALL_OVERLAY_URLS;
-    if (reducedMotion) return urls[0]!;
-    return urls[maskIdx % urls.length]!;
-  }, [maskIdx, reducedMotion]);
-
-  const maskLuma = useMaskLuminance(maskUrl, tilesPerRow, rows);
 
   const rowTiles = useMemo(() => {
     if (rows <= 0 || tilesPerRow <= 0) return [];
@@ -131,14 +78,7 @@ export function PhotoWall() {
     return () => mq.removeEventListener("change", apply);
   }, []);
 
-  useEffect(() => {
-    if (reducedMotion) return;
-    const id = window.setInterval(() => {
-      setMaskIdx((i) => (i + 1) % WALL_OVERLAY_URLS.length);
-    }, WALL_OVERLAY_DISPLAY_MS);
-    return () => window.clearInterval(id);
-  }, [reducedMotion]);
-
+  /** Ảnh mới: hàng chờ popup → bay góc trái trên (27×36px, trùng ô lưới). */
   useEffect(() => {
     const imgs = data?.images;
     if (!imgs?.length) return;
@@ -222,23 +162,37 @@ export function PhotoWall() {
               style={{ height: STRIP_TILE_H }}
             >
               <div className="flex h-full w-full min-w-0 flex-nowrap items-stretch" style={{ gap: STRIP_GAP_PX }}>
-                {tiles.map((src, i) => {
-                  const idx = row * tilesPerRow + i;
-                  const raw = maskLuma && idx < maskLuma.length ? maskLuma[idx]! : null;
-                  return (
-                    <WallMosaicCell
-                      key={`${row}-${i}`}
+                {tiles.map((src, i) => (
+                  <div
+                    key={`${row}-${i}`}
+                    className="shrink-0 overflow-hidden bg-[#0c1226]"
+                    style={{
+                      width: STRIP_TILE_W,
+                      height: STRIP_TILE_H,
+                      contentVisibility: "auto",
+                      containIntrinsicSize: `${STRIP_TILE_W}px ${STRIP_TILE_H}px`,
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
                       src={src}
-                      tileW={STRIP_TILE_W}
-                      tileH={STRIP_TILE_H}
-                      rawLuma={raw}
+                      alt=""
+                      width={STRIP_TILE_W}
+                      height={STRIP_TILE_H}
+                      className="block object-cover"
+                      loading="lazy"
+                      decoding="async"
+                      sizes="27px"
+                      draggable={false}
                     />
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </div>
           ))}
         </div>
+
+        <WallGraphicBlend reducedMotion={reducedMotion} />
 
         {hero ? (
           <div
