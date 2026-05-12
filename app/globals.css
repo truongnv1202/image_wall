@@ -34,10 +34,8 @@ body {
   }
 }
 
-/* Watermark chữ (khung 16:9), không hào quang / tia — chỉ chữ. */
-
-/* Khung nội dung giữ tỉ lệ 16:9, scale theo viewport. */
-.wall-watermark-stage {
+/* Khung overlay ảnh title (16:9), căn giữa — blend lên lưới ảnh. */
+.wall-overlay-stage {
   position: relative;
   z-index: 2;
   display: flex;
@@ -48,21 +46,6 @@ body {
   align-items: center;
   justify-content: center;
   padding: 2rem;
-}
-
-/* scale(16) × cỡ nền clamp = chữ hiển thị gấp 16 lần cỡ nền. */
-.wall-watermark-copy-scaled {
-  transform: scale(16);
-  transform-origin: center center;
-  will-change: transform;
-}
-
-.wall-watermark-line {
-  font-weight: 800;
-  color: rgba(255, 226, 150, 0.22);
-  -webkit-text-stroke: 1.35px rgba(110, 78, 12, 0.42);
-  /* Không bóng hào quang — chỉ nét tách nền tối */
-  text-shadow: 0 1px 1px rgba(40, 28, 4, 0.5);
 }
 
 /* Popup ảnh mới → thu về góc trái trên (viewport). */

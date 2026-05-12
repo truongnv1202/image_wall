@@ -3,27 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
-import { notoSans } from "@/app/fonts";
 import { DEFAULT_IMAGE_URLS } from "@/lib/mockImages";
 import type { ImagesPayload } from "@/lib/types";
 import { HERO_FLY_MS, HERO_POPUP_MS, STRIP_GAP_PX, STRIP_TILE_H, STRIP_TILE_W } from "@/lib/wallStripConstants";
-import { WallWatermark } from "@/components/WallWatermark";
-import { WALL_MASK_TEXT } from "@/lib/wallConstants";
-import type { WallTextPayload } from "@/lib/wallTextStore";
+import { WallImageBlend } from "@/components/WallImageBlend";
 
 const POLL_MS = 4000;
-const WALL_TEXT_POLL_MS = 10_000;
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
     if (!r.ok) throw new Error("fetch failed");
     return r.json() as Promise<ImagesPayload>;
-  });
-
-const fetcherWallText = (url: string) =>
-  fetch(url).then((r) => {
-    if (!r.ok) throw new Error("fetch failed");
-    return r.json() as Promise<WallTextPayload>;
   });
 
 type HeroState = { url: string; phase: "popup" | "fly" } | null;
@@ -35,7 +25,6 @@ function countTracks(axisPx: number, cellPx: number, gapPx: number): number {
 }
 
 export function PhotoWall() {
-  const [phraseIndex, setPhraseIndex] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(false);
   const prevImagesSnapshotRef = useRef<string[] | null>(null);
   const lastGoodPoolRef = useRef<string[] | null>(null);
@@ -48,18 +37,6 @@ export function PhotoWall() {
     refreshInterval: POLL_MS,
     revalidateOnFocus: true,
   });
-  const { data: wallText } = useSWR<WallTextPayload>("/api/wall-text", fetcherWallText, {
-    refreshInterval: WALL_TEXT_POLL_MS,
-    revalidateOnFocus: true,
-  });
-
-  const phrases = useMemo(() => {
-    if (!wallText?.phrases?.length) return [WALL_MASK_TEXT];
-    const t = wallText.phrases.map((p) => p.trim()).filter((p) => p.length > 0);
-    return t.length > 0 ? t : [WALL_MASK_TEXT];
-  }, [wallText]);
-
-  const rotateMs = wallText?.rotateIntervalMs ?? 60_000;
 
   const pool = useMemo(() => {
     if (Array.isArray(data?.images) && data.images.length > 0) {
@@ -93,7 +70,6 @@ export function PhotoWall() {
     });
   }, [rows, tilesPerRow, pool]);
 
-  const displayPhrase = (phrases[phraseIndex % phrases.length] || WALL_MASK_TEXT).toUpperCase();
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     const apply = () => setReducedMotion(mq.matches);
@@ -101,19 +77,6 @@ export function PhotoWall() {
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
   }, []);
-
-  useEffect(() => {
-    if (rotateMs <= 0 || phrases.length <= 1) return;
-    const id = window.setInterval(
-      () => setPhraseIndex((i) => (i + 1) % phrases.length),
-      rotateMs,
-    );
-    return () => window.clearInterval(id);
-  }, [rotateMs, phrases.length]);
-
-  useEffect(() => {
-    setPhraseIndex((i) => i % Math.max(1, phrases.length));
-  }, [phrases]);
 
   /** Ảnh mới: hàng chờ popup → bay góc trái trên (27×36px, trùng ô lưới). */
   useEffect(() => {
@@ -229,11 +192,7 @@ export function PhotoWall() {
           ))}
         </div>
 
-        <WallWatermark
-          phrase={displayPhrase}
-          crossfadeMs={wallText?.phraseCrossfadeMs ?? 800}
-          fontClassName={notoSans.className}
-        />
+        <WallImageBlend reducedMotion={reducedMotion} />
 
         {hero ? (
           <div
