@@ -15,6 +15,60 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  async function clearAllUploads() {
+    if (
+      !window.confirm(
+        "Xóa toàn bộ ảnh đã upload trên đĩa và reset danh sách về ảnh mẫu? Hành động này không hoàn tác.",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setStatus(null);
+    try {
+      const headers: HeadersInit = {};
+      if (apiUploadToken) headers["x-upload-token"] = apiUploadToken;
+      const path =
+        apiUploadToken != null && apiUploadToken.length > 0
+          ? `/api/images?token=${encodeURIComponent(apiUploadToken)}`
+          : "/api/images";
+      const res = await fetch(path, { method: "DELETE", headers, cache: "no-store" });
+      const raw = await res.text();
+      let data = {} as { error?: string; images?: string[] };
+      try {
+        data = raw ? (JSON.parse(raw) as typeof data) : {};
+      } catch {
+        data = {};
+      }
+      if (!res.ok) {
+        if (res.status === 401) {
+          setStatus(
+            "Không được phép (401): cần token upload giống khi gửi ảnh (UPLOAD_PAGE_TOKEN trên server).",
+          );
+          return;
+        }
+        setStatus(
+          typeof data.error === "string" && data.error.length > 0
+            ? data.error
+            : `Lỗi ${res.status}`,
+        );
+        return;
+      }
+      if (Array.isArray(data.images)) {
+        await mutate("/api/images", { images: data.images } satisfies ImagesPayload, {
+          revalidate: false,
+        });
+      }
+      void mutate("/api/images");
+      void mutate("/api/wall-composite");
+      setStatus("Đã xóa ảnh upload và reset danh sách.");
+    } catch {
+      setStatus("Lỗi mạng");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -112,6 +166,20 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
         />
       </label>
       {status ? <p className="text-zinc-400">{status}</p> : null}
+      <div className="border-t border-zinc-800 pt-3">
+        <button
+          type="button"
+          disabled={busy}
+          className="rounded-lg border border-red-800/80 bg-red-950/40 px-3 py-2 text-xs font-medium text-red-200 hover:bg-red-900/50 disabled:opacity-50"
+          onClick={() => void clearAllUploads()}
+        >
+          Xóa hết ảnh đã upload
+        </button>
+        <p className="mt-2 text-xs text-zinc-500">
+          Xóa mọi file trong <code className="text-zinc-400">public/uploads/</code>, đặt lại danh sách về ảnh mẫu
+          (Picsum). Cần xác nhận trong hộp thoại.
+        </p>
+      </div>
     </div>
   );
 }

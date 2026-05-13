@@ -5,7 +5,7 @@ export type WallCompositeMeta = {
   /** Tăng mỗi lần ghép xong — client dùng cache-bust. */
   version: number;
   updatedAt: string;
-  /** Lần ghép tiếp theo dùng overlay B (true) hay A (false). */
+  /** Dự phòng (luân phiên B); hiện luôn dùng overlay A. */
   useOverlayBNext: boolean;
   lastError?: string;
 };

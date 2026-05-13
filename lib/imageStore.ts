@@ -38,6 +38,34 @@ export async function readImages(): Promise<ImagesPayload> {
 /** Chuỗi Promise để không đọc/ghi `images.json` chồng chéo (upload nhanh / song song). */
 let prependChain: Promise<void> = Promise.resolve();
 
+/** Xóa mọi file trong `public/uploads/`, ghi lại `images.json` chỉ còn URL mẫu (Picsum). */
+export async function resetImagesToDefaultsAndRemoveUploads(): Promise<ImagesPayload> {
+  const prev = prependChain;
+  let done!: () => void;
+  prependChain = new Promise<void>((resolve) => {
+    done = resolve;
+  });
+  await prev.catch((e) => {
+    console.error("[imageStore] prepend queue hỏng trước reset:", e);
+  });
+  try {
+    const uploadDir = path.join(process.cwd(), "public", "uploads");
+    try {
+      const names = await fs.readdir(uploadDir);
+      await Promise.all(names.map((n) => fs.unlink(path.join(uploadDir, n)).catch(() => {})));
+    } catch {
+      await fs.mkdir(uploadDir, { recursive: true });
+    }
+
+    const next: ImagesPayload = { images: [...DEFAULT_IMAGE_URLS] };
+    await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
+    await fs.writeFile(DATA_PATH, JSON.stringify(next, null, 2), "utf8");
+    return next;
+  } finally {
+    done();
+  }
+}
+
 /** unshift URL — ảnh mới lên đầu mảng (bỏ trùng URL nếu có). */
 export async function prependImageUrl(url: string): Promise<ImagesPayload> {
   const prev = prependChain;

@@ -12,7 +12,6 @@ import { STRIP_GAP_PX } from "@/lib/wallStripConstants";
 
 const OUT_REL = path.join("public", "generated", "wall-composite.jpg");
 const OVERLAY_A = path.join(process.cwd(), "public", "wall-overlays", "wall-composite-A.png");
-const OVERLAY_B = path.join(process.cwd(), "public", "wall-overlays", "wall-composite-B.png");
 
 const FETCH_TIMEOUT_MS = 20_000;
 
@@ -142,8 +141,7 @@ export async function regenerateWallComposite(): Promise<void> {
       .toBuffer();
 
     const meta = await readWallCompositeMeta();
-    const useBThisRun = meta.useOverlayBNext;
-    const overlayPath = useBThisRun ? OVERLAY_B : OVERLAY_A;
+    const overlayPath = OVERLAY_A;
     let overlayBuf: Buffer;
     try {
       overlayBuf = await fs.readFile(overlayPath);
@@ -185,7 +183,7 @@ export async function regenerateWallComposite(): Promise<void> {
     await writeWallCompositeMeta({
       version: meta.version + 1,
       updatedAt: new Date().toISOString(),
-      useOverlayBNext: !useBThisRun,
+      useOverlayBNext: false,
       lastError: undefined,
     });
   } catch (err) {
