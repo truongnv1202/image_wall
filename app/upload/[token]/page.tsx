@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { UploadPanel } from "@/components/UploadPanel";
+import { WallBlendPanel } from "@/components/WallBlendPanel";
 import { WallTextPanel } from "@/components/WallTextPanel";
 import {
   getExpectedUploadToken,
@@ -78,9 +79,10 @@ export default async function SecretUploadPage({ params }: Props) {
   return (
     <div className="flex min-h-screen flex-col items-center gap-8 bg-zinc-950 px-3 py-10 pb-16 text-zinc-100">
       <p className="max-w-md text-center text-xs text-zinc-500">
-        Trang quản trị thử (không công khai). Ảnh và câu chữ ghi vào cùng kho với tường{" "}
-        <code className="text-zinc-400">/wall</code>.
+        Trang quản trị thử (không công khai). Upload ảnh, chỉnh blend overlay và cấu hình chữ/lưới — ghi
+        vào cùng kho với tường <code className="text-zinc-400">/wall</code>.
       </p>
+      <WallBlendPanel apiUploadToken={token} />
       <UploadPanel apiUploadToken={token} />
       <WallTextPanel apiUploadToken={token} />
     </div>
