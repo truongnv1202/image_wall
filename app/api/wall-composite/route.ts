@@ -26,7 +26,7 @@ export async function GET() {
   }
   return NextResponse.json(
     {
-      url: "/generated/wall-composite.jpg",
+      url: "/api/wall-composite/image",
       version: meta.version,
       updatedAt: meta.updatedAt,
       ready,

@@ -152,7 +152,9 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         Ảnh tường ghép (server, ~16:9)
       </div>
       <p className="text-xs text-zinc-500">
-        Server ghép lưới theo số ô ở trên, phủ luân phiên ảnh A/B, ghi <code className="text-zinc-400">/generated/wall-composite.jpg</code>
+        Server ghép lưới theo số ô ở trên, phủ luân phiên ảnh A/B; tường tải qua{" "}
+        <code className="text-zinc-400">/api/wall-composite/image</code> (file vẫn lưu dưới{" "}
+        <code className="text-zinc-400">public/generated/</code>).
         ; trang tường khi có ảnh ghép sẽ hiển thị ảnh đó (mờ dần khi đổi phiên bản). Watermark chữ chỉ còn trên lưới trực tiếp khi chưa có ảnh ghép.
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
