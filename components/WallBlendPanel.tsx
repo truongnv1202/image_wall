@@ -21,7 +21,7 @@ const fetcher = (url: string) =>
 type Props = { apiUploadToken: string };
 
 /**
- * Chỉnh `mix-blend-mode` và độ mờ watermark ảnh overlay trên /wall; lưu POST /api/wall-text.
+ * Chỉnh `mix-blend-mode` và độ mờ watermark ảnh overlay trên /wall và trên ảnh ghép server (`wall-composite`).
  */
 export function WallBlendPanel({ apiUploadToken }: Props) {
   const { data, error, isLoading, mutate } = useSWR<WallTextPayload>("/api/wall-text", fetcher);
@@ -65,7 +65,7 @@ export function WallBlendPanel({ apiUploadToken }: Props) {
         return;
       }
       await mutate(body, { revalidate: false });
-      setStatus("Đã lưu; tường /wall cập nhật trong vài giây.");
+      setStatus("Đã lưu; tường /wall và ảnh ghép server cập nhật (vài giây).");
     } catch {
       setStatus("Lỗi mạng");
     } finally {
@@ -87,9 +87,9 @@ export function WallBlendPanel({ apiUploadToken }: Props) {
     <div className="flex w-full max-w-xl flex-col gap-3 border border-zinc-800 bg-zinc-900/80 p-4 text-sm text-zinc-200">
       <div className="font-medium text-zinc-100">Watermark ảnh overlay (tường /wall)</div>
       <p className="text-xs text-zinc-500">
-        Thứ tự trên tường: lưới ảnh nền toàn màn → lớp watermark <strong>full màn</strong> (nền mờ + ảnh{" "}
-        <code className="text-zinc-400">object-cover</code>) với{" "}
-        <code className="text-zinc-400">mix-blend-mode</code> và độ mờ bạn chọn.
+        Giá trị lưu trong <code className="text-zinc-400">wall-text.json</code>: lưới trực tiếp trên{" "}
+        <code className="text-zinc-400">/wall</code> dùng CSS <code className="text-zinc-400">mix-blend-mode</code>; job
+        ghép ảnh server dùng cùng blend + độ mờ (Sharp <code className="text-zinc-400">composite</code> + nhân alpha).
       </p>
       <label className="flex flex-col gap-1 text-xs text-zinc-400">
         <span>Chế độ blend</span>

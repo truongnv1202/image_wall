@@ -141,31 +141,37 @@ export async function regenerateWallComposite(): Promise<void> {
       .jpeg({ quality: 90 })
       .toBuffer();
 
+    /* Cùng cấu hình với panel “Watermark” (wall-text): độ mờ = nhân kênh alpha; blend = Sharp composite. */
+    const overlayOpacity = Math.min(1, Math.max(0, wall.graphicOverlayOpacity));
+    const overlayBlend = cssBlendToSharp(wall.graphicBlendMode) as Blend;
+
     const meta = await readWallCompositeMeta();
-    const overlayPath = OVERLAY_A;
-    let overlayBuf: Buffer;
-    try {
-      overlayBuf = await fs.readFile(overlayPath);
-    } catch (e) {
-      await writeWallCompositeMeta({
-        ...meta,
-        lastError: `Thiếu file overlay: ${overlayPath}`,
-      });
-      throw e;
+
+    if (overlayOpacity > 0.001) {
+      const overlayPath = OVERLAY_A;
+      let overlayBuf: Buffer;
+      try {
+        overlayBuf = await fs.readFile(overlayPath);
+      } catch (e) {
+        await writeWallCompositeMeta({
+          ...meta,
+          lastError: `Thiếu file overlay: ${overlayPath}`,
+        });
+        throw e;
+      }
+
+      let overlay = await sharp(overlayBuf)
+        .resize(outW, outH, { fit: "cover", position: "centre" })
+        .ensureAlpha()
+        .png()
+        .toBuffer();
+      overlay = await applyAlphaScale(overlay, overlayOpacity);
+
+      merged = await sharp(merged)
+        .composite([{ input: overlay, left: 0, top: 0, blend: overlayBlend }])
+        .jpeg({ quality: 90 })
+        .toBuffer();
     }
-
-    let overlay = await sharp(overlayBuf)
-      .resize(outW, outH, { fit: "cover", position: "centre" })
-      .ensureAlpha()
-      .png()
-      .toBuffer();
-    overlay = await applyAlphaScale(overlay, wall.graphicOverlayOpacity);
-
-    const blend = cssBlendToSharp(wall.graphicBlendMode) as Blend;
-    merged = await sharp(merged)
-      .composite([{ input: overlay, left: 0, top: 0, blend }])
-      .jpeg({ quality: 90 })
-      .toBuffer();
 
     const outAbs = path.join(process.cwd(), OUT_REL);
     await fs.mkdir(path.dirname(outAbs), { recursive: true });
