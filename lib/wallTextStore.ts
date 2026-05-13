@@ -25,6 +25,13 @@ export type WallTextPayload = {
   graphicBlendMode: WallGraphicBlendMode;
   /** Độ mờ overlay / watermark ảnh (0 = trong suốt, 1 = đục hoàn toàn). */
   graphicOverlayOpacity: number;
+  /** Chu kỳ ghép lại ảnh tường server-side (ms), mặc định 60s. */
+  compositeIntervalMs: number;
+  /** Kích thước ảnh ghép xuất ra (pixel), ~16:9. */
+  compositeOutWidth: number;
+  compositeOutHeight: number;
+  /** Thời gian crossfade khi tường đổi sang ảnh ghép mới (ms). */
+  wallCompositeFadeMs: number;
 };
 
 const DATA_PATH = path.join(process.cwd(), "data", "wall-text.json");
@@ -37,6 +44,10 @@ const DEFAULT: WallTextPayload = {
   gridRows: 60,
   graphicBlendMode: WALL_GRAPHIC_DEFAULT_BLEND,
   graphicOverlayOpacity: WALL_GRAPHIC_OVERLAY_OPACITY,
+  compositeIntervalMs: 60_000,
+  compositeOutWidth: 1920,
+  compositeOutHeight: 1080,
+  wallCompositeFadeMs: 900,
 };
 
 export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
@@ -78,6 +89,30 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
     WALL_GRAPHIC_OVERLAY_OPACITY,
   );
 
+  let compositeIntervalMs =
+    typeof o.compositeIntervalMs === "number" && Number.isFinite(o.compositeIntervalMs)
+      ? Math.floor(o.compositeIntervalMs)
+      : DEFAULT.compositeIntervalMs;
+  compositeIntervalMs = Math.min(Math.max(10_000, compositeIntervalMs), 3_600_000);
+
+  let compositeOutWidth =
+    typeof o.compositeOutWidth === "number" && Number.isFinite(o.compositeOutWidth)
+      ? Math.floor(o.compositeOutWidth)
+      : DEFAULT.compositeOutWidth;
+  compositeOutWidth = Math.min(Math.max(640, compositeOutWidth), 3840);
+
+  let compositeOutHeight =
+    typeof o.compositeOutHeight === "number" && Number.isFinite(o.compositeOutHeight)
+      ? Math.floor(o.compositeOutHeight)
+      : DEFAULT.compositeOutHeight;
+  compositeOutHeight = Math.min(Math.max(360, compositeOutHeight), 2160);
+
+  let wallCompositeFadeMs =
+    typeof o.wallCompositeFadeMs === "number" && Number.isFinite(o.wallCompositeFadeMs)
+      ? Math.floor(o.wallCompositeFadeMs)
+      : DEFAULT.wallCompositeFadeMs;
+  wallCompositeFadeMs = Math.min(Math.max(200, wallCompositeFadeMs), 5000);
+
   return {
     phrases,
     rotateIntervalMs,
@@ -86,6 +121,10 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
     gridRows,
     graphicBlendMode,
     graphicOverlayOpacity,
+    compositeIntervalMs,
+    compositeOutWidth,
+    compositeOutHeight,
+    wallCompositeFadeMs,
   };
 }
 

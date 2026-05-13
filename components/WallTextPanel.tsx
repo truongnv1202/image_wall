@@ -24,6 +24,10 @@ export function WallTextPanel({ apiUploadToken }: Props) {
   const [crossfadeMs, setCrossfadeMs] = useState(800);
   const [gridCols, setGridCols] = useState(100);
   const [gridRows, setGridRows] = useState(60);
+  const [compositeIntervalSec, setCompositeIntervalSec] = useState(60);
+  const [compositeOutWidth, setCompositeOutWidth] = useState(1920);
+  const [compositeOutHeight, setCompositeOutHeight] = useState(1080);
+  const [wallCompositeFadeMs, setWallCompositeFadeMs] = useState(900);
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -34,6 +38,10 @@ export function WallTextPanel({ apiUploadToken }: Props) {
     setCrossfadeMs(data.phraseCrossfadeMs ?? 800);
     setGridCols(data.gridCols ?? 100);
     setGridRows(data.gridRows ?? 60);
+    setCompositeIntervalSec(Math.max(10, Math.round((data.compositeIntervalMs ?? 60_000) / 1000)));
+    setCompositeOutWidth(data.compositeOutWidth ?? 1920);
+    setCompositeOutHeight(data.compositeOutHeight ?? 1080);
+    setWallCompositeFadeMs(data.wallCompositeFadeMs ?? 900);
   }, [data]);
 
   async function save() {
@@ -52,6 +60,13 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       const nextGridRows = Math.min(140, Math.max(6, Math.floor(Number(gridRows)) || 60));
       const graphicBlendMode = data?.graphicBlendMode ?? WALL_GRAPHIC_DEFAULT_BLEND;
       const graphicOverlayOpacity = data?.graphicOverlayOpacity ?? WALL_GRAPHIC_OVERLAY_OPACITY;
+      const nextCompositeIntervalMs = Math.min(
+        3_600_000,
+        Math.max(10_000, Math.round(Number(compositeIntervalSec) * 1000) || 60_000),
+      );
+      const nextOutW = Math.min(3840, Math.max(640, Math.floor(Number(compositeOutWidth)) || 1920));
+      const nextOutH = Math.min(2160, Math.max(360, Math.floor(Number(compositeOutHeight)) || 1080));
+      const nextWallCompositeFadeMs = Math.min(5000, Math.max(200, Math.floor(Number(wallCompositeFadeMs)) || 900));
       const wallTextUrl = `/api/wall-text?token=${encodeURIComponent(apiUploadToken)}`;
       const res = await fetch(wallTextUrl, {
         method: "POST",
@@ -67,6 +82,10 @@ export function WallTextPanel({ apiUploadToken }: Props) {
           gridRows: nextGridRows,
           graphicBlendMode,
           graphicOverlayOpacity,
+          compositeIntervalMs: nextCompositeIntervalMs,
+          compositeOutWidth: nextOutW,
+          compositeOutHeight: nextOutH,
+          wallCompositeFadeMs: nextWallCompositeFadeMs,
         } satisfies WallTextPayload),
       });
       const body = (await res.json().catch(() => ({}))) as WallTextPayload & { error?: string };
@@ -128,6 +147,64 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         đen nếu ảnh không đúng tỷ lệ). Thiếu ảnh so với số ô thì lặp theo thứ tự, ảnh mới vẫn ở đầu danh
         sách.
       </p>
+
+      <div className="border-t border-zinc-800 pt-3 text-xs font-medium text-zinc-400">
+        Ảnh tường ghép (server, ~16:9)
+      </div>
+      <p className="text-xs text-zinc-500">
+        Server ghép lưới theo số ô ở trên, phủ luân phiên ảnh A/B, ghi <code className="text-zinc-400">/generated/wall-composite.jpg</code>
+        ; trang tường khi có ảnh ghép sẽ hiển thị ảnh đó (mờ dần khi đổi phiên bản). Watermark chữ chỉ còn trên lưới trực tiếp khi chưa có ảnh ghép.
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
+          <span>Chu kỳ tạo lại ảnh ghép (giây, 10–3600)</span>
+          <input
+            type="number"
+            min={10}
+            max={3600}
+            step={1}
+            value={Number.isFinite(compositeIntervalSec) ? compositeIntervalSec : 60}
+            onChange={(e) => setCompositeIntervalSec(Number(e.target.value))}
+            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
+          <span>Mờ dần khi đổi ảnh ghép (ms, 200–5000)</span>
+          <input
+            type="number"
+            min={200}
+            max={5000}
+            step={50}
+            value={Number.isFinite(wallCompositeFadeMs) ? wallCompositeFadeMs : 900}
+            onChange={(e) => setWallCompositeFadeMs(Number(e.target.value))}
+            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
+          <span>Kích thước xuất — rộng (px, 640–3840)</span>
+          <input
+            type="number"
+            min={640}
+            max={3840}
+            step={2}
+            value={Number.isFinite(compositeOutWidth) ? compositeOutWidth : 1920}
+            onChange={(e) => setCompositeOutWidth(Number(e.target.value))}
+            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
+          <span>Kích thước xuất — cao (px, 360–2160)</span>
+          <input
+            type="number"
+            min={360}
+            max={2160}
+            step={2}
+            value={Number.isFinite(compositeOutHeight) ? compositeOutHeight : 1080}
+            onChange={(e) => setCompositeOutHeight(Number(e.target.value))}
+            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+          />
+        </label>
+      </div>
 
       <div className="border-t border-zinc-800 pt-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
         Câu chữ (watermark giữa tường ảnh)

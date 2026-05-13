@@ -12,10 +12,12 @@ import {
 } from "@/lib/wallGraphicUrls";
 import type { WallTextPayload } from "@/lib/wallTextStore";
 import { HERO_FLY_MS, HERO_POPUP_MS, STRIP_GAP_PX, STRIP_TILE_H, STRIP_TILE_W } from "@/lib/wallStripConstants";
+import { WallCompositeBackground } from "@/components/WallCompositeBackground";
 import { WallGraphicBlend } from "@/components/WallGraphicBlend";
 
 const POLL_MS = 4000;
 const WALL_TEXT_POLL_MS = 10_000;
+const COMPOSITE_POLL_MS = 2500;
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -27,6 +29,20 @@ const fetcherWallText = (url: string) =>
   fetch(url).then((r) => {
     if (!r.ok) throw new Error("fetch failed");
     return r.json() as Promise<WallTextPayload>;
+  });
+
+type WallCompositeApi = {
+  url: string;
+  version: number;
+  updatedAt: string;
+  ready: boolean;
+  lastError: string | null;
+};
+
+const fetcherWallComposite = (url: string) =>
+  fetch(url).then((r) => {
+    if (!r.ok) throw new Error("fetch failed");
+    return r.json() as Promise<WallCompositeApi>;
   });
 
 type HeroState = { url: string; phase: "popup" | "fly" } | null;
@@ -54,6 +70,14 @@ export function PhotoWall() {
     refreshInterval: WALL_TEXT_POLL_MS,
     revalidateOnFocus: true,
   });
+  const { data: wallComposite } = useSWR<WallCompositeApi>(
+    "/api/wall-composite",
+    fetcherWallComposite,
+    { refreshInterval: COMPOSITE_POLL_MS, revalidateOnFocus: true },
+  );
+
+  const compositeReady = Boolean(wallComposite?.ready && wallComposite.version > 0);
+  const compositeFadeMs = wallCfg?.wallCompositeFadeMs ?? 900;
 
   const graphicBlendMode = useMemo(() => {
     return (
@@ -179,51 +203,60 @@ export function PhotoWall() {
   return (
     <div className="flex h-full min-h-0 w-full flex-1">
       <div className="relative h-full min-h-0 w-full overflow-hidden bg-[#0b1020]">
-        {/* Lớp nền: lưới ảnh toàn màn hình */}
         <div
           ref={wallViewportRef}
           className="absolute inset-0 z-0 flex min-h-0 min-w-0 flex-col overflow-hidden"
-          style={{ gap: STRIP_GAP_PX }}
         >
-          {rowTiles.map((tiles, row) => (
-            <div
-              key={row}
-              className="min-h-0 w-full shrink-0 overflow-hidden"
-              style={{ height: STRIP_TILE_H }}
-            >
-              <div className="flex h-full w-full min-w-0 flex-nowrap items-stretch" style={{ gap: STRIP_GAP_PX }}>
-                {tiles.map((src, i) => (
-                  <div
-                    key={`${row}-${i}`}
-                    className="shrink-0 overflow-hidden bg-[#0c1226]"
-                    style={{
-                      width: STRIP_TILE_W,
-                      height: STRIP_TILE_H,
-                      contentVisibility: "auto",
-                      containIntrinsicSize: `${STRIP_TILE_W}px ${STRIP_TILE_H}px`,
-                    }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={src}
-                      alt=""
-                      width={STRIP_TILE_W}
-                      height={STRIP_TILE_H}
-                      className="block object-cover"
-                      loading="lazy"
-                      decoding="async"
-                      sizes="54px"
-                      draggable={false}
-                    />
+          {compositeReady && wallComposite ? (
+            <WallCompositeBackground
+              url={wallComposite.url}
+              version={wallComposite.version}
+              fadeMs={compositeFadeMs}
+            />
+          ) : (
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" style={{ gap: STRIP_GAP_PX }}>
+              {rowTiles.map((tiles, row) => (
+                <div
+                  key={row}
+                  className="min-h-0 w-full shrink-0 overflow-hidden"
+                  style={{ height: STRIP_TILE_H }}
+                >
+                  <div className="flex h-full w-full min-w-0 flex-nowrap items-stretch" style={{ gap: STRIP_GAP_PX }}>
+                    {tiles.map((src, i) => (
+                      <div
+                        key={`${row}-${i}`}
+                        className="shrink-0 overflow-hidden bg-[#0c1226]"
+                        style={{
+                          width: STRIP_TILE_W,
+                          height: STRIP_TILE_H,
+                          contentVisibility: "auto",
+                          containIntrinsicSize: `${STRIP_TILE_W}px ${STRIP_TILE_H}px`,
+                        }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={src}
+                          alt=""
+                          width={STRIP_TILE_W}
+                          height={STRIP_TILE_H}
+                          className="block object-cover"
+                          loading="lazy"
+                          decoding="async"
+                          sizes="54px"
+                          draggable={false}
+                        />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
 
-        {/* Lớp trên: watermark full màn — nền mờ + ảnh + blendMode */}
-        <WallGraphicBlend blendMode={graphicBlendMode} overlayOpacity={graphicOverlayOpacity} />
+        {!compositeReady ? (
+          <WallGraphicBlend blendMode={graphicBlendMode} overlayOpacity={graphicOverlayOpacity} />
+        ) : null}
 
         {hero ? (
           <div

@@ -7,5 +7,9 @@
   "gridCols": 100,
   "gridRows": 60,
   "graphicBlendMode": "hard-light",
-  "graphicOverlayOpacity": 0.9
+  "graphicOverlayOpacity": 0.9,
+  "compositeIntervalMs": 60000,
+  "compositeOutWidth": 1920,
+  "compositeOutHeight": 1080,
+  "wallCompositeFadeMs": 900
 }
