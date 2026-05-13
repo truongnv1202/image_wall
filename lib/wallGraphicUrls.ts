@@ -1,5 +1,5 @@
 /** Ảnh overlay trên tường (một file trong `public/wall-overlays/`). */
-export const WALL_GRAPHIC_URL = "/wall-overlays/deplam-hoabinh.png";
+export const WALL_GRAPHIC_URL = "/wall-overlays/giu-lay-binh-yen.png";
 
 /** Độ mờ mặc định lớp overlay / watermark ảnh (0–1); có thể chỉnh trên trang upload. */
 export const WALL_GRAPHIC_OVERLAY_OPACITY = 0.9;

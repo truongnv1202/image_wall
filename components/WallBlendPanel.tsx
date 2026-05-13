@@ -26,7 +26,7 @@ type Props = { apiUploadToken: string };
 export function WallBlendPanel({ apiUploadToken }: Props) {
   const { data, error, isLoading, mutate } = useSWR<WallTextPayload>("/api/wall-text", fetcher);
   const [blend, setBlend] = useState<WallGraphicBlendMode>(WALL_GRAPHIC_DEFAULT_BLEND);
-  /** 0–100 % hiển thị trên thanh trượt; lưu file dạng 0–1. */
+  /** 0–100 %; lưu file dạng 0–1. */
   const [opacityPct, setOpacityPct] = useState(90);
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -84,10 +84,11 @@ export function WallBlendPanel({ apiUploadToken }: Props) {
   }
 
   return (
-    <div className="flex w-full max-w-xl flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-sm text-zinc-200">
+    <div className="flex w-full max-w-xl flex-col gap-3 border border-zinc-800 bg-zinc-900/80 p-4 text-sm text-zinc-200">
       <div className="font-medium text-zinc-100">Watermark ảnh overlay (tường /wall)</div>
       <p className="text-xs text-zinc-500">
-        Thứ tự trên tường: lưới ảnh nền toàn màn → khung 16:9 → nền trong khung → ảnh watermark với{" "}
+        Thứ tự trên tường: lưới ảnh nền toàn màn → lớp watermark <strong>full màn</strong> (nền mờ + ảnh{" "}
+        <code className="text-zinc-400">object-cover</code>) với{" "}
         <code className="text-zinc-400">mix-blend-mode</code> và độ mờ bạn chọn.
       </p>
       <label className="flex flex-col gap-1 text-xs text-zinc-400">
@@ -98,7 +99,7 @@ export function WallBlendPanel({ apiUploadToken }: Props) {
             const v = e.target.value;
             if (isWallGraphicBlendMode(v)) setBlend(v);
           }}
-          className="max-w-md rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+          className="max-w-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
         >
           {WALL_GRAPHIC_BLEND_MODE_CHOICES.map((m) => (
             <option key={m} value={m}>
@@ -107,22 +108,26 @@ export function WallBlendPanel({ apiUploadToken }: Props) {
           ))}
         </select>
       </label>
-      <label className="flex flex-col gap-2 text-xs text-zinc-400">
-        <span>Độ mờ watermark ({opacityPct}%)</span>
+      <label className="flex flex-col gap-1 text-xs text-zinc-400">
+        <span>Độ mờ watermark (0–100%)</span>
         <input
-          type="range"
+          type="number"
           min={0}
           max={100}
           step={1}
           value={opacityPct}
-          onChange={(e) => setOpacityPct(Number(e.target.value))}
-          className="max-w-md accent-emerald-600"
+          onChange={(e) => {
+            const n = Math.round(Number(e.target.value));
+            if (!Number.isFinite(n)) return;
+            setOpacityPct(Math.min(100, Math.max(0, n)));
+          }}
+          className="max-w-[8rem] border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
         />
       </label>
       <button
         type="button"
         disabled={saving || !data}
-        className="self-start rounded-lg bg-emerald-800 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+        className="self-start border border-emerald-700 bg-emerald-800 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
         onClick={() => void saveBlend()}
       >
         {saving ? "Đang lưu…" : "Lưu watermark"}

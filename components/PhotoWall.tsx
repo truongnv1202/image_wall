@@ -222,7 +222,7 @@ export function PhotoWall() {
           ))}
         </div>
 
-        {/* Lớp trên: khung 16:9 → nền trong khung → watermark + blendMode (WallGraphicBlend) */}
+        {/* Lớp trên: watermark full màn — nền mờ + ảnh + blendMode */}
         <WallGraphicBlend blendMode={graphicBlendMode} overlayOpacity={graphicOverlayOpacity} />
 
         {hero ? (
