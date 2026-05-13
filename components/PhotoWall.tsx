@@ -192,7 +192,7 @@ export function PhotoWall() {
           ))}
         </div>
 
-        <WallGraphicBlend reducedMotion={reducedMotion} />
+        <WallGraphicBlend />
 
         {hero ? (
           <div

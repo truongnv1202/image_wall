@@ -1,32 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-import {
-  WALL_GRAPHIC_A,
-  WALL_GRAPHIC_B,
-  WALL_GRAPHIC_BLEND_MS,
-  WALL_GRAPHIC_CYCLE_MS,
-} from "@/lib/wallGraphicUrls";
-
-type Props = {
-  reducedMotion: boolean;
-};
+import { WALL_GRAPHIC_MIX_BLEND, WALL_GRAPHIC_OVERLAY_OPACITY, WALL_GRAPHIC_URL } from "@/lib/wallGraphicUrls";
 
 /**
- * Hai ảnh thay phiên A ↔ B, crossfade + mix-blend lên lưới ảnh.
+ * Một ảnh overlay, `mix-blend-mode` chọn qua `lib/wallGraphicUrls.ts` (mặc định / env
+ * `NEXT_PUBLIC_WALL_GRAPHIC_BLEND_MODE`).
  */
-export function WallGraphicBlend({ reducedMotion }: Props) {
-  const [showFirst, setShowFirst] = useState(true);
-
-  useEffect(() => {
-    if (reducedMotion) return;
-    const id = window.setInterval(() => setShowFirst((v) => !v), WALL_GRAPHIC_CYCLE_MS);
-    return () => window.clearInterval(id);
-  }, [reducedMotion]);
-
-  const durMs = reducedMotion ? 0 : WALL_GRAPHIC_BLEND_MS;
-
+export function WallGraphicBlend() {
   return (
     <div
       aria-hidden
@@ -41,30 +21,18 @@ export function WallGraphicBlend({ reducedMotion }: Props) {
           maxHeight: 1080,
         }}
       >
-        <div className="absolute inset-0 mix-blend-hard-light" style={{ opacity: 0.9 }}>
+        <div
+          className="absolute inset-0"
+          style={{
+            mixBlendMode: WALL_GRAPHIC_MIX_BLEND,
+            opacity: WALL_GRAPHIC_OVERLAY_OPACITY,
+          }}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={WALL_GRAPHIC_A}
+            src={WALL_GRAPHIC_URL}
             alt=""
             className="absolute inset-0 h-full w-full object-contain"
-            style={{
-              opacity: showFirst ? 1 : 0,
-              transition: `opacity ${durMs}ms ease-in-out`,
-              zIndex: showFirst ? 2 : 1,
-            }}
-            draggable={false}
-            decoding="async"
-          />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={WALL_GRAPHIC_B}
-            alt=""
-            className="absolute inset-0 h-full w-full object-contain"
-            style={{
-              opacity: showFirst ? 0 : 1,
-              transition: `opacity ${durMs}ms ease-in-out`,
-              zIndex: showFirst ? 1 : 2,
-            }}
             draggable={false}
             decoding="async"
           />
