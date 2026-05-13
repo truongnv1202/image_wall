@@ -5,15 +5,27 @@ import useSWR from "swr";
 
 import { DEFAULT_IMAGE_URLS } from "@/lib/mockImages";
 import type { ImagesPayload } from "@/lib/types";
+import {
+  WALL_GRAPHIC_DEFAULT_BLEND,
+  resolveEnvWallGraphicBlendMode,
+} from "@/lib/wallGraphicUrls";
+import type { WallTextPayload } from "@/lib/wallTextStore";
 import { HERO_FLY_MS, HERO_POPUP_MS, STRIP_GAP_PX, STRIP_TILE_H, STRIP_TILE_W } from "@/lib/wallStripConstants";
 import { WallGraphicBlend } from "@/components/WallGraphicBlend";
 
 const POLL_MS = 4000;
+const WALL_TEXT_POLL_MS = 10_000;
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
     if (!r.ok) throw new Error("fetch failed");
     return r.json() as Promise<ImagesPayload>;
+  });
+
+const fetcherWallText = (url: string) =>
+  fetch(url).then((r) => {
+    if (!r.ok) throw new Error("fetch failed");
+    return r.json() as Promise<WallTextPayload>;
   });
 
 type HeroState = { url: string; phase: "popup" | "fly" } | null;
@@ -37,6 +49,18 @@ export function PhotoWall() {
     refreshInterval: POLL_MS,
     revalidateOnFocus: true,
   });
+  const { data: wallCfg } = useSWR<WallTextPayload>("/api/wall-text", fetcherWallText, {
+    refreshInterval: WALL_TEXT_POLL_MS,
+    revalidateOnFocus: true,
+  });
+
+  const graphicBlendMode = useMemo(() => {
+    return (
+      wallCfg?.graphicBlendMode ??
+      resolveEnvWallGraphicBlendMode() ??
+      WALL_GRAPHIC_DEFAULT_BLEND
+    );
+  }, [wallCfg?.graphicBlendMode]);
 
   const pool = useMemo(() => {
     if (Array.isArray(data?.images) && data.images.length > 0) {
@@ -192,7 +216,7 @@ export function PhotoWall() {
           ))}
         </div>
 
-        <WallGraphicBlend />
+        <WallGraphicBlend blendMode={graphicBlendMode} />
 
         {hero ? (
           <div

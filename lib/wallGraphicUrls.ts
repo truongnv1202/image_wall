@@ -5,10 +5,8 @@ export const WALL_GRAPHIC_URL = "/wall-overlays/deplam-hoabinh.png";
 export const WALL_GRAPHIC_OVERLAY_OPACITY = 0.9;
 
 /**
- * Các giá trị hợp lệ cho CSS `mix-blend-mode`.
- * Chọn mode:
- * - **Mặc định khi không có env:** sửa hằng `DEFAULT_BLEND` trong file này.
- * - **Deploy / Docker:** đặt `NEXT_PUBLIC_WALL_GRAPHIC_BLEND_MODE` (vd. `soft-light`, `overlay`).
+ * Toàn bộ giá trị hợp lệ cho CSS `mix-blend-mode` (theo MDN / Compositing):
+ * các chế độ blend + từ khóa cascade toàn cục.
  */
 export const WALL_GRAPHIC_BLEND_MODE_CHOICES = [
   "normal",
@@ -29,30 +27,43 @@ export const WALL_GRAPHIC_BLEND_MODE_CHOICES = [
   "luminosity",
   "plus-darker",
   "plus-lighter",
+  "inherit",
+  "initial",
+  "revert",
+  "revert-layer",
+  "unset",
 ] as const;
 
 export type WallGraphicBlendMode = (typeof WALL_GRAPHIC_BLEND_MODE_CHOICES)[number];
 
-const DEFAULT_BLEND: WallGraphicBlendMode = "hard-light";
+/** Mặc định khi không có trong JSON và không có env hợp lệ. */
+export const WALL_GRAPHIC_DEFAULT_BLEND: WallGraphicBlendMode = "hard-light";
 
 function normalizeBlendToken(s: string): string {
   return s.trim().toLowerCase().replace(/_/g, "-");
 }
 
-function isWallGraphicBlendMode(s: string): s is WallGraphicBlendMode {
+export function isWallGraphicBlendMode(s: string): s is WallGraphicBlendMode {
   return (WALL_GRAPHIC_BLEND_MODE_CHOICES as readonly string[]).includes(s);
 }
 
-/** Đọc từ env (client bundle) hoặc dùng mặc định — gọi khi import module. */
-function resolveWallGraphicBlendMode(): WallGraphicBlendMode {
+/** `NEXT_PUBLIC_WALL_GRAPHIC_BLEND_MODE` — chỉ khi build; dùng làm fallback khi JSON chưa có field. */
+export function resolveEnvWallGraphicBlendMode(): WallGraphicBlendMode | null {
   const raw =
     typeof process !== "undefined" && process.env.NEXT_PUBLIC_WALL_GRAPHIC_BLEND_MODE
       ? process.env.NEXT_PUBLIC_WALL_GRAPHIC_BLEND_MODE
       : "";
   const key = normalizeBlendToken(raw);
   if (key.length > 0 && isWallGraphicBlendMode(key)) return key;
-  return DEFAULT_BLEND;
+  return null;
 }
 
-/** Mode blend áp dụng cho overlay (ưu tiên `NEXT_PUBLIC_WALL_GRAPHIC_BLEND_MODE` khi build). */
-export const WALL_GRAPHIC_MIX_BLEND: WallGraphicBlendMode = resolveWallGraphicBlendMode();
+export function coerceWallGraphicBlendMode(
+  value: unknown,
+  fallback: WallGraphicBlendMode,
+): WallGraphicBlendMode {
+  if (typeof value !== "string") return fallback;
+  const key = normalizeBlendToken(value);
+  if (key.length > 0 && isWallGraphicBlendMode(key)) return key;
+  return fallback;
+}

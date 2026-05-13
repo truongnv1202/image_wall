@@ -2,6 +2,12 @@ import { promises as fs } from "fs";
 import path from "path";
 
 import { WALL_MASK_TEXT } from "@/lib/wallConstants";
+import {
+  WALL_GRAPHIC_DEFAULT_BLEND,
+  coerceWallGraphicBlendMode,
+  resolveEnvWallGraphicBlendMode,
+  type WallGraphicBlendMode,
+} from "@/lib/wallGraphicUrls";
 
 export type WallTextPayload = {
   phrases: string[];
@@ -13,6 +19,8 @@ export type WallTextPayload = {
   gridCols: number;
   /** Số ảnh theo chiều dọc. */
   gridRows: number;
+  /** `mix-blend-mode` cho lớp ảnh overlay giữa tường. */
+  graphicBlendMode: WallGraphicBlendMode;
 };
 
 const DATA_PATH = path.join(process.cwd(), "data", "wall-text.json");
@@ -23,6 +31,7 @@ const DEFAULT: WallTextPayload = {
   phraseCrossfadeMs: 800,
   gridCols: 100,
   gridRows: 60,
+  graphicBlendMode: WALL_GRAPHIC_DEFAULT_BLEND,
 };
 
 export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
@@ -57,7 +66,10 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
       : DEFAULT.gridRows;
   gridRows = Math.min(Math.max(6, gridRows), 140);
 
-  return { phrases, rotateIntervalMs, phraseCrossfadeMs, gridCols, gridRows };
+  const blendFallback = resolveEnvWallGraphicBlendMode() ?? WALL_GRAPHIC_DEFAULT_BLEND;
+  const graphicBlendMode = coerceWallGraphicBlendMode(o.graphicBlendMode, blendFallback);
+
+  return { phrases, rotateIntervalMs, phraseCrossfadeMs, gridCols, gridRows, graphicBlendMode };
 }
 
 async function ensureFile(): Promise<void> {

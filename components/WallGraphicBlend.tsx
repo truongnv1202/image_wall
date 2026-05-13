@@ -1,12 +1,16 @@
 "use client";
 
-import { WALL_GRAPHIC_MIX_BLEND, WALL_GRAPHIC_OVERLAY_OPACITY, WALL_GRAPHIC_URL } from "@/lib/wallGraphicUrls";
+import type { WallGraphicBlendMode } from "@/lib/wallGraphicUrls";
+import { WALL_GRAPHIC_OVERLAY_OPACITY, WALL_GRAPHIC_URL } from "@/lib/wallGraphicUrls";
+
+type Props = {
+  blendMode: WallGraphicBlendMode;
+};
 
 /**
- * Một ảnh overlay, `mix-blend-mode` chọn qua `lib/wallGraphicUrls.ts` (mặc định / env
- * `NEXT_PUBLIC_WALL_GRAPHIC_BLEND_MODE`).
+ * Một ảnh overlay; `mix-blend-mode` do cấu hình tường (`/api/wall-text`, chỉnh trên trang upload).
  */
-export function WallGraphicBlend() {
+export function WallGraphicBlend({ blendMode }: Props) {
   return (
     <div
       aria-hidden
@@ -24,7 +28,7 @@ export function WallGraphicBlend() {
         <div
           className="absolute inset-0"
           style={{
-            mixBlendMode: WALL_GRAPHIC_MIX_BLEND,
+            mixBlendMode: blendMode,
             opacity: WALL_GRAPHIC_OVERLAY_OPACITY,
           }}
         >

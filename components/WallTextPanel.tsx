@@ -4,6 +4,12 @@ import { useEffect, useState } from "react";
 import useSWR from "swr";
 
 import type { WallTextPayload } from "@/lib/wallTextStore";
+import {
+  WALL_GRAPHIC_BLEND_MODE_CHOICES,
+  WALL_GRAPHIC_DEFAULT_BLEND,
+  isWallGraphicBlendMode,
+  type WallGraphicBlendMode,
+} from "@/lib/wallGraphicUrls";
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -23,6 +29,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
   const [crossfadeMs, setCrossfadeMs] = useState(800);
   const [gridCols, setGridCols] = useState(100);
   const [gridRows, setGridRows] = useState(60);
+  const [graphicBlendMode, setGraphicBlendMode] = useState<WallGraphicBlendMode>(WALL_GRAPHIC_DEFAULT_BLEND);
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -33,6 +40,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
     setCrossfadeMs(data.phraseCrossfadeMs ?? 800);
     setGridCols(data.gridCols ?? 100);
     setGridRows(data.gridRows ?? 60);
+    setGraphicBlendMode(data.graphicBlendMode ?? WALL_GRAPHIC_DEFAULT_BLEND);
   }, [data]);
 
   async function save() {
@@ -62,6 +70,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
           phraseCrossfadeMs,
           gridCols: nextGridCols,
           gridRows: nextGridRows,
+          graphicBlendMode,
         } satisfies WallTextPayload),
       });
       const body = (await res.json().catch(() => ({}))) as WallTextPayload & { error?: string };
@@ -123,6 +132,24 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         đen nếu ảnh không đúng tỷ lệ). Thiếu ảnh so với số ô thì lặp theo thứ tự, ảnh mới vẫn ở đầu danh
         sách.
       </p>
+
+      <label className="flex flex-col gap-1 text-xs text-zinc-400">
+        <span>Blend ảnh overlay giữa tường (`mix-blend-mode`)</span>
+        <select
+          value={graphicBlendMode}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (isWallGraphicBlendMode(v)) setGraphicBlendMode(v);
+          }}
+          className="max-w-md rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+        >
+          {WALL_GRAPHIC_BLEND_MODE_CHOICES.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <div className="border-t border-zinc-800 pt-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
         Câu chữ (watermark giữa tường ảnh)
