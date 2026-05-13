@@ -7,65 +7,25 @@ import {
   WALL_GRAPHIC_B,
   WALL_GRAPHIC_BLEND_MS,
   WALL_GRAPHIC_CYCLE_MS,
-  WALL_GRAPHIC_IDLE_MS,
 } from "@/lib/wallGraphicUrls";
 
 type Props = {
   reducedMotion: boolean;
 };
 
-type Phase = "a" | "b" | "hidden";
-
 /**
- * Hai ảnh thay phiên (A → B), rồi ẩn cả hai, nghỉ `WALL_GRAPHIC_IDLE_MS`, lặp lại từ A.
+ * Hai ảnh thay phiên A ↔ B, crossfade + mix-blend lên lưới ảnh.
  */
 export function WallGraphicBlend({ reducedMotion }: Props) {
-  const [phase, setPhase] = useState<Phase>("a");
+  const [showFirst, setShowFirst] = useState(true);
 
   useEffect(() => {
-    if (reducedMotion) {
-      setPhase("a");
-      return;
-    }
-
-    let cancelled = false;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    const push = (t: ReturnType<typeof setTimeout>) => {
-      timers.push(t);
-    };
-
-    const runCycle = () => {
-      setPhase("a");
-      push(
-        setTimeout(() => {
-          if (cancelled) return;
-          setPhase("b");
-          push(
-            setTimeout(() => {
-              if (cancelled) return;
-              setPhase("hidden");
-              push(
-                setTimeout(() => {
-                  if (cancelled) return;
-                  runCycle();
-                }, WALL_GRAPHIC_IDLE_MS),
-              );
-            }, WALL_GRAPHIC_CYCLE_MS),
-          );
-        }, WALL_GRAPHIC_CYCLE_MS),
-      );
-    };
-
-    runCycle();
-    return () => {
-      cancelled = true;
-      timers.forEach(clearTimeout);
-    };
+    if (reducedMotion) return;
+    const id = window.setInterval(() => setShowFirst((v) => !v), WALL_GRAPHIC_CYCLE_MS);
+    return () => window.clearInterval(id);
   }, [reducedMotion]);
 
   const durMs = reducedMotion ? 0 : WALL_GRAPHIC_BLEND_MS;
-  const opacityA = phase === "a" ? 1 : 0;
-  const opacityB = phase === "b" ? 1 : 0;
 
   return (
     <div
@@ -81,22 +41,16 @@ export function WallGraphicBlend({ reducedMotion }: Props) {
           maxHeight: 1080,
         }}
       >
-        <div
-          className="absolute inset-0 mix-blend-soft-light"
-          style={{
-            opacity: phase === "hidden" ? 0 : 0.9,
-            transition: `opacity ${durMs}ms ease-in-out`,
-          }}
-        >
+        <div className="absolute inset-0 mix-blend-hard-light" style={{ opacity: 0.9 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={WALL_GRAPHIC_A}
             alt=""
             className="absolute inset-0 h-full w-full object-contain"
             style={{
-              opacity: opacityA,
+              opacity: showFirst ? 1 : 0,
               transition: `opacity ${durMs}ms ease-in-out`,
-              zIndex: phase === "a" ? 2 : 1,
+              zIndex: showFirst ? 2 : 1,
             }}
             draggable={false}
             decoding="async"
@@ -107,9 +61,9 @@ export function WallGraphicBlend({ reducedMotion }: Props) {
             alt=""
             className="absolute inset-0 h-full w-full object-contain"
             style={{
-              opacity: opacityB,
+              opacity: showFirst ? 0 : 1,
               transition: `opacity ${durMs}ms ease-in-out`,
-              zIndex: phase === "b" ? 2 : 1,
+              zIndex: showFirst ? 1 : 2,
             }}
             draggable={false}
             decoding="async"
