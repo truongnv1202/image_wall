@@ -40,7 +40,7 @@ type WallCompositeApi = {
 };
 
 const fetcherWallComposite = (url: string) =>
-  fetch(url).then((r) => {
+  fetch(url, { cache: "no-store" }).then((r) => {
     if (!r.ok) throw new Error("fetch failed");
     return r.json() as Promise<WallCompositeApi>;
   });

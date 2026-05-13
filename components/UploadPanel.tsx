@@ -85,6 +85,7 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
       } else {
         await mutate("/api/images");
       }
+      void mutate("/api/wall-composite");
       setStatus("Đã thêm ảnh lên đầu tường.");
     } catch {
       setStatus("Lỗi mạng");

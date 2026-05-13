@@ -30,5 +30,6 @@ export function startWallCompositeScheduler(): void {
   if (started) return;
   started = true;
   clearTimer();
-  timer = setTimeout(() => void tickAndSchedule(), 4_000);
+  /* Tick đầu nhanh để tường có ảnh ghép sớm; các lần sau theo compositeIntervalMs. */
+  timer = setTimeout(() => void tickAndSchedule(), 800);
 }
