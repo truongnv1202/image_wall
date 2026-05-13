@@ -57,6 +57,7 @@ body {
   transform: translate(-50%, -50%);
 }
 
+/* Fly: kích thước cuối — PhotoWall ghi đè width/height bằng inline theo cấu hình ô lưới. */
 .wall-hero-card--fly {
   top: 12px;
   left: 12px;

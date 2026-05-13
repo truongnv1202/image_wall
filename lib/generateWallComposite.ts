@@ -8,7 +8,7 @@ import { readImages } from "@/lib/imageStore";
 import { cssBlendToSharp } from "@/lib/wallCompositeBlendMap";
 import { readWallCompositeMeta, writeWallCompositeMeta } from "@/lib/wallCompositeMeta";
 import { readWallText } from "@/lib/wallTextStore";
-import { STRIP_GAP_PX, STRIP_TILE_H, STRIP_TILE_W } from "@/lib/wallStripConstants";
+import { STRIP_GAP_PX } from "@/lib/wallStripConstants";
 
 const OUT_REL = path.join("public", "generated", "wall-composite.jpg");
 const OVERLAY_A = path.join(process.cwd(), "public", "wall-overlays", "wall-composite-A.png");
@@ -85,8 +85,8 @@ export async function regenerateWallComposite(): Promise<void> {
     const outW = wall.compositeOutWidth;
     const outH = wall.compositeOutHeight;
     const gap = STRIP_GAP_PX;
-    const cellW = STRIP_TILE_W;
-    const cellH = STRIP_TILE_H;
+    const cellW = wall.gridTileWidthPx;
+    const cellH = wall.gridTileHeightPx;
 
     const gridW = cols * cellW + Math.max(0, cols - 1) * gap;
     const gridH = rows * cellH + Math.max(0, rows - 1) * gap;

@@ -6,6 +6,8 @@
   "phraseCrossfadeMs": 800,
   "gridCols": 100,
   "gridRows": 60,
+  "gridTileWidthPx": 54,
+  "gridTileHeightPx": 72,
   "graphicBlendMode": "hard-light",
   "graphicOverlayOpacity": 0.9,
   "compositeIntervalMs": 60000,

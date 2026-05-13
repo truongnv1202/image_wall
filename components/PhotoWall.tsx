@@ -102,15 +102,18 @@ export function PhotoWall() {
     return DEFAULT_IMAGE_URLS;
   }, [data?.images]);
 
+  const tileW = wallCfg?.gridTileWidthPx ?? STRIP_TILE_W;
+  const tileH = wallCfg?.gridTileHeightPx ?? STRIP_TILE_H;
+
   const rows = useMemo(
-    () => countTracks(viewportSize.h, STRIP_TILE_H, STRIP_GAP_PX),
-    [viewportSize.h],
+    () => countTracks(viewportSize.h, tileH, STRIP_GAP_PX),
+    [viewportSize.h, tileH],
   );
 
   /** Số ô theo chiều ngang vừa khít viewport — không lặp đôi / không marquee (nhẹ máy yếu). */
   const tilesPerRow = useMemo(
-    () => countTracks(viewportSize.w, STRIP_TILE_W, STRIP_GAP_PX),
-    [viewportSize.w],
+    () => countTracks(viewportSize.w, tileW, STRIP_GAP_PX),
+    [viewportSize.w, tileW],
   );
 
   const rowTiles = useMemo(() => {
@@ -131,7 +134,7 @@ export function PhotoWall() {
     return () => mq.removeEventListener("change", apply);
   }, []);
 
-  /** Ảnh mới: hàng chờ popup → bay góc trái trên (54×72px, trùng ô lưới). */
+  /** Ảnh mới: hàng chờ popup → bay góc trái trên (cùng kích thước ô lưới). */
   useEffect(() => {
     const imgs = data?.images;
     if (!imgs?.length) return;
@@ -219,7 +222,7 @@ export function PhotoWall() {
                 <div
                   key={row}
                   className="min-h-0 w-full shrink-0 overflow-hidden"
-                  style={{ height: STRIP_TILE_H }}
+                  style={{ height: tileH }}
                 >
                   <div className="flex h-full w-full min-w-0 flex-nowrap items-stretch" style={{ gap: STRIP_GAP_PX }}>
                     {tiles.map((src, i) => (
@@ -227,22 +230,22 @@ export function PhotoWall() {
                         key={`${row}-${i}`}
                         className="shrink-0 overflow-hidden bg-[#0c1226]"
                         style={{
-                          width: STRIP_TILE_W,
-                          height: STRIP_TILE_H,
+                          width: tileW,
+                          height: tileH,
                           contentVisibility: "auto",
-                          containIntrinsicSize: `${STRIP_TILE_W}px ${STRIP_TILE_H}px`,
+                          containIntrinsicSize: `${tileW}px ${tileH}px`,
                         }}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={src}
                           alt=""
-                          width={STRIP_TILE_W}
-                          height={STRIP_TILE_H}
+                          width={tileW}
+                          height={tileH}
                           className="block object-cover"
                           loading="lazy"
                           decoding="async"
-                          sizes="54px"
+                          sizes={`${tileW}px`}
                           draggable={false}
                         />
                       </div>
@@ -267,6 +270,19 @@ export function PhotoWall() {
               className={`wall-hero-card pointer-events-none overflow-hidden rounded-lg bg-black/20 shadow-2xl ring-1 ring-white/10 ${
                 hero.phase === "popup" ? "wall-hero-card--popup" : "wall-hero-card--fly"
               }`}
+              style={
+                hero.phase === "fly"
+                  ? {
+                      top: 12,
+                      left: 12,
+                      width: tileW,
+                      height: tileH,
+                      maxWidth: tileW,
+                      maxHeight: tileH,
+                      transform: "none",
+                    }
+                  : undefined
+              }
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img

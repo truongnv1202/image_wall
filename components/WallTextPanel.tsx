@@ -24,6 +24,8 @@ export function WallTextPanel({ apiUploadToken }: Props) {
   const [crossfadeMs, setCrossfadeMs] = useState(800);
   const [gridCols, setGridCols] = useState(100);
   const [gridRows, setGridRows] = useState(60);
+  const [gridTileWidthPx, setGridTileWidthPx] = useState(54);
+  const [gridTileHeightPx, setGridTileHeightPx] = useState(72);
   const [compositeIntervalSec, setCompositeIntervalSec] = useState(60);
   const [compositeOutWidth, setCompositeOutWidth] = useState(1920);
   const [compositeOutHeight, setCompositeOutHeight] = useState(1080);
@@ -38,6 +40,8 @@ export function WallTextPanel({ apiUploadToken }: Props) {
     setCrossfadeMs(data.phraseCrossfadeMs ?? 800);
     setGridCols(data.gridCols ?? 100);
     setGridRows(data.gridRows ?? 60);
+    setGridTileWidthPx(data.gridTileWidthPx ?? 54);
+    setGridTileHeightPx(data.gridTileHeightPx ?? 72);
     setCompositeIntervalSec(Math.max(10, Math.round((data.compositeIntervalMs ?? 60_000) / 1000)));
     setCompositeOutWidth(data.compositeOutWidth ?? 1920);
     setCompositeOutHeight(data.compositeOutHeight ?? 1080);
@@ -58,6 +62,8 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       const phraseCrossfadeMs = Math.min(4000, Math.max(150, Math.round(Number(crossfadeMs)) || 800));
       const nextGridCols = Math.min(240, Math.max(10, Math.floor(Number(gridCols)) || 100));
       const nextGridRows = Math.min(140, Math.max(6, Math.floor(Number(gridRows)) || 60));
+      const nextTileW = Math.min(256, Math.max(24, Math.floor(Number(gridTileWidthPx)) || 54));
+      const nextTileH = Math.min(384, Math.max(24, Math.floor(Number(gridTileHeightPx)) || 72));
       const graphicBlendMode = data?.graphicBlendMode ?? WALL_GRAPHIC_DEFAULT_BLEND;
       const graphicOverlayOpacity = data?.graphicOverlayOpacity ?? WALL_GRAPHIC_OVERLAY_OPACITY;
       const nextCompositeIntervalMs = Math.min(
@@ -80,6 +86,8 @@ export function WallTextPanel({ apiUploadToken }: Props) {
           phraseCrossfadeMs,
           gridCols: nextGridCols,
           gridRows: nextGridRows,
+          gridTileWidthPx: nextTileW,
+          gridTileHeightPx: nextTileH,
           graphicBlendMode,
           graphicOverlayOpacity,
           compositeIntervalMs: nextCompositeIntervalMs,
@@ -141,11 +149,37 @@ export function WallTextPanel({ apiUploadToken }: Props) {
             className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
           />
         </label>
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
+          <span>Kích thước ô lưới — rộng (px, 24–256)</span>
+          <input
+            type="number"
+            min={24}
+            max={256}
+            step={1}
+            value={Number.isFinite(gridTileWidthPx) ? gridTileWidthPx : 54}
+            onChange={(e) => setGridTileWidthPx(Number(e.target.value))}
+            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
+          <span>Kích thước ô lưới — cao (px, 24–384)</span>
+          <input
+            type="number"
+            min={24}
+            max={384}
+            step={1}
+            value={Number.isFinite(gridTileHeightPx) ? gridTileHeightPx : 72}
+            onChange={(e) => setGridTileHeightPx(Number(e.target.value))}
+            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+          />
+        </label>
       </div>
       <p className="text-xs text-zinc-500">
-        Mỗi ô trên tường là <strong>54×72px</strong>, tỷ lệ khung 3×4 (dọc); ảnh hiển thị vừa khung, không kéo méo (có thể có viền
-        đen nếu ảnh không đúng tỷ lệ). Thiếu ảnh so với số ô thì lặp theo thứ tự, ảnh mới vẫn ở đầu danh
-        sách.
+        Mỗi ô trên tường hiện tại là{" "}
+        <strong>
+          {Number.isFinite(gridTileWidthPx) ? gridTileWidthPx : 54}×{Number.isFinite(gridTileHeightPx) ? gridTileHeightPx : 72}px
+        </strong>
+        ; nên giữ tỷ lệ gần 3×4 (dọc). Ảnh vừa khung, không kéo méo (có thể có viền đen nếu ảnh không đúng tỷ lệ). Thiếu ảnh so với số ô thì lặp theo thứ tự, ảnh mới vẫn ở đầu danh sách.
       </p>
 
       <div className="border-t border-zinc-800 pt-3 text-xs font-medium text-zinc-400">
@@ -154,8 +188,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       <p className="text-xs text-zinc-500">
         Server ghép lưới theo số ô ở trên, phủ luân phiên ảnh A/B; tường tải qua{" "}
         <code className="text-zinc-400">/api/wall-composite/image</code> (file vẫn lưu dưới{" "}
-        <code className="text-zinc-400">public/generated/</code>).
-        ; trang tường khi có ảnh ghép sẽ hiển thị ảnh đó (mờ dần khi đổi phiên bản). Watermark chữ chỉ còn trên lưới trực tiếp khi chưa có ảnh ghép.
+        <code className="text-zinc-400">public/generated/</code>). Trang tường khi có ảnh ghép sẽ hiển thị ảnh đó (mờ dần khi đổi phiên bản). Watermark chữ chỉ còn trên lưới trực tiếp khi chưa có ảnh ghép.
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs text-zinc-400">

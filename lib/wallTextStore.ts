@@ -21,6 +21,9 @@ export type WallTextPayload = {
   gridCols: number;
   /** Số ảnh theo chiều dọc. */
   gridRows: number;
+  /** Kích thước mỗi ô lưới trên tường (px) — mặc định 54×72 (3:4). */
+  gridTileWidthPx: number;
+  gridTileHeightPx: number;
   /** `mix-blend-mode` cho lớp ảnh overlay giữa tường. */
   graphicBlendMode: WallGraphicBlendMode;
   /** Độ mờ overlay / watermark ảnh (0 = trong suốt, 1 = đục hoàn toàn). */
@@ -42,6 +45,8 @@ const DEFAULT: WallTextPayload = {
   phraseCrossfadeMs: 800,
   gridCols: 100,
   gridRows: 60,
+  gridTileWidthPx: 54,
+  gridTileHeightPx: 72,
   graphicBlendMode: WALL_GRAPHIC_DEFAULT_BLEND,
   graphicOverlayOpacity: WALL_GRAPHIC_OVERLAY_OPACITY,
   compositeIntervalMs: 60_000,
@@ -82,6 +87,18 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
       : DEFAULT.gridRows;
   gridRows = Math.min(Math.max(6, gridRows), 140);
 
+  let gridTileWidthPx =
+    typeof o.gridTileWidthPx === "number" && Number.isFinite(o.gridTileWidthPx)
+      ? Math.floor(o.gridTileWidthPx)
+      : DEFAULT.gridTileWidthPx;
+  gridTileWidthPx = Math.min(Math.max(24, gridTileWidthPx), 256);
+
+  let gridTileHeightPx =
+    typeof o.gridTileHeightPx === "number" && Number.isFinite(o.gridTileHeightPx)
+      ? Math.floor(o.gridTileHeightPx)
+      : DEFAULT.gridTileHeightPx;
+  gridTileHeightPx = Math.min(Math.max(24, gridTileHeightPx), 384);
+
   const blendFallback = resolveEnvWallGraphicBlendMode() ?? WALL_GRAPHIC_DEFAULT_BLEND;
   const graphicBlendMode = coerceWallGraphicBlendMode(o.graphicBlendMode, blendFallback);
   const graphicOverlayOpacity = coerceGraphicOverlayOpacity(
@@ -119,6 +136,8 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
     phraseCrossfadeMs,
     gridCols,
     gridRows,
+    gridTileWidthPx,
+    gridTileHeightPx,
     graphicBlendMode,
     graphicOverlayOpacity,
     compositeIntervalMs,
