@@ -1,8 +1,14 @@
 /** Ảnh overlay trên tường (một file trong `public/wall-overlays/`). */
 export const WALL_GRAPHIC_URL = "/wall-overlays/deplam-hoabinh.png";
 
-/** Độ mờ lớp overlay (0–1). */
+/** Độ mờ mặc định lớp overlay / watermark ảnh (0–1); có thể chỉnh trên trang upload. */
 export const WALL_GRAPHIC_OVERLAY_OPACITY = 0.9;
+
+/** Chuẩn hoá opacity từ JSON / form. */
+export function coerceGraphicOverlayOpacity(value: unknown, fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.min(1, Math.max(0, value));
+}
 
 /**
  * Toàn bộ giá trị hợp lệ cho CSS `mix-blend-mode` (theo MDN / Compositing):

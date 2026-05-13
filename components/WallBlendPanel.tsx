@@ -7,6 +7,7 @@ import type { WallTextPayload } from "@/lib/wallTextStore";
 import {
   WALL_GRAPHIC_BLEND_MODE_CHOICES,
   WALL_GRAPHIC_DEFAULT_BLEND,
+  WALL_GRAPHIC_OVERLAY_OPACITY,
   isWallGraphicBlendMode,
   type WallGraphicBlendMode,
 } from "@/lib/wallGraphicUrls";
@@ -20,17 +21,21 @@ const fetcher = (url: string) =>
 type Props = { apiUploadToken: string };
 
 /**
- * Chỉnh `mix-blend-mode` cho ảnh overlay trên /wall; lưu qua POST /api/wall-text (cùng token upload).
+ * Chỉnh `mix-blend-mode` và độ mờ watermark ảnh overlay trên /wall; lưu POST /api/wall-text.
  */
 export function WallBlendPanel({ apiUploadToken }: Props) {
   const { data, error, isLoading, mutate } = useSWR<WallTextPayload>("/api/wall-text", fetcher);
   const [blend, setBlend] = useState<WallGraphicBlendMode>(WALL_GRAPHIC_DEFAULT_BLEND);
+  /** 0–100 % hiển thị trên thanh trượt; lưu file dạng 0–1. */
+  const [opacityPct, setOpacityPct] = useState(90);
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!data) return;
     setBlend(data.graphicBlendMode ?? WALL_GRAPHIC_DEFAULT_BLEND);
+    const o = data.graphicOverlayOpacity ?? WALL_GRAPHIC_OVERLAY_OPACITY;
+    setOpacityPct(Math.round(Math.min(1, Math.max(0, o)) * 100));
   }, [data]);
 
   async function saveBlend() {
@@ -51,6 +56,7 @@ export function WallBlendPanel({ apiUploadToken }: Props) {
         body: JSON.stringify({
           ...data,
           graphicBlendMode: blend,
+          graphicOverlayOpacity: Math.min(1, Math.max(0, opacityPct / 100)),
         } satisfies WallTextPayload),
       });
       const body = (await res.json().catch(() => ({}))) as WallTextPayload & { error?: string };
@@ -59,7 +65,7 @@ export function WallBlendPanel({ apiUploadToken }: Props) {
         return;
       }
       await mutate(body, { revalidate: false });
-      setStatus("Đã lưu blend; tường /wall cập nhật trong vài giây.");
+      setStatus("Đã lưu; tường /wall cập nhật trong vài giây.");
     } catch {
       setStatus("Lỗi mạng");
     } finally {
@@ -74,15 +80,15 @@ export function WallBlendPanel({ apiUploadToken }: Props) {
   }
 
   if (isLoading && !data) {
-    return <p className="text-sm text-zinc-500">Đang tải cấu hình blend…</p>;
+    return <p className="text-sm text-zinc-500">Đang tải cấu hình watermark…</p>;
   }
 
   return (
     <div className="flex w-full max-w-xl flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-sm text-zinc-200">
-      <div className="font-medium text-zinc-100">Blend ảnh overlay (tường /wall)</div>
+      <div className="font-medium text-zinc-100">Watermark ảnh overlay (tường /wall)</div>
       <p className="text-xs text-zinc-500">
-        CSS <code className="text-zinc-400">mix-blend-mode</code> cho lớp ảnh phủ giữa tường. Bấm lưu
-        riêng — không cần mở khối cấu hình chữ bên dưới.
+        Thứ tự trên tường: lưới ảnh nền toàn màn → khung 16:9 → nền trong khung → ảnh watermark với{" "}
+        <code className="text-zinc-400">mix-blend-mode</code> và độ mờ bạn chọn.
       </p>
       <label className="flex flex-col gap-1 text-xs text-zinc-400">
         <span>Chế độ blend</span>
@@ -101,13 +107,25 @@ export function WallBlendPanel({ apiUploadToken }: Props) {
           ))}
         </select>
       </label>
+      <label className="flex flex-col gap-2 text-xs text-zinc-400">
+        <span>Độ mờ watermark ({opacityPct}%)</span>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={opacityPct}
+          onChange={(e) => setOpacityPct(Number(e.target.value))}
+          className="max-w-md accent-emerald-600"
+        />
+      </label>
       <button
         type="button"
         disabled={saving || !data}
         className="self-start rounded-lg bg-emerald-800 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
         onClick={() => void saveBlend()}
       >
-        {saving ? "Đang lưu…" : "Lưu blend"}
+        {saving ? "Đang lưu…" : "Lưu watermark"}
       </button>
       {status ? <p className="text-xs text-zinc-400">{status}</p> : null}
     </div>

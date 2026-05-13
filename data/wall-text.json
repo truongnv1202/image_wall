@@ -6,5 +6,6 @@
   "phraseCrossfadeMs": 800,
   "gridCols": 100,
   "gridRows": 60,
-  "graphicBlendMode": "hard-light"
+  "graphicBlendMode": "hard-light",
+  "graphicOverlayOpacity": 0.9
 }

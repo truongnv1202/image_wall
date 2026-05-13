@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import useSWR from "swr";
 
 import type { WallTextPayload } from "@/lib/wallTextStore";
-import { WALL_GRAPHIC_DEFAULT_BLEND } from "@/lib/wallGraphicUrls";
+import { WALL_GRAPHIC_DEFAULT_BLEND, WALL_GRAPHIC_OVERLAY_OPACITY } from "@/lib/wallGraphicUrls";
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -51,6 +51,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       const nextGridCols = Math.min(240, Math.max(10, Math.floor(Number(gridCols)) || 100));
       const nextGridRows = Math.min(140, Math.max(6, Math.floor(Number(gridRows)) || 60));
       const graphicBlendMode = data?.graphicBlendMode ?? WALL_GRAPHIC_DEFAULT_BLEND;
+      const graphicOverlayOpacity = data?.graphicOverlayOpacity ?? WALL_GRAPHIC_OVERLAY_OPACITY;
       const wallTextUrl = `/api/wall-text?token=${encodeURIComponent(apiUploadToken)}`;
       const res = await fetch(wallTextUrl, {
         method: "POST",
@@ -65,6 +66,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
           gridCols: nextGridCols,
           gridRows: nextGridRows,
           graphicBlendMode,
+          graphicOverlayOpacity,
         } satisfies WallTextPayload),
       });
       const body = (await res.json().catch(() => ({}))) as WallTextPayload & { error?: string };

@@ -7,6 +7,7 @@ import { DEFAULT_IMAGE_URLS } from "@/lib/mockImages";
 import type { ImagesPayload } from "@/lib/types";
 import {
   WALL_GRAPHIC_DEFAULT_BLEND,
+  WALL_GRAPHIC_OVERLAY_OPACITY,
   resolveEnvWallGraphicBlendMode,
 } from "@/lib/wallGraphicUrls";
 import type { WallTextPayload } from "@/lib/wallTextStore";
@@ -61,6 +62,10 @@ export function PhotoWall() {
       WALL_GRAPHIC_DEFAULT_BLEND
     );
   }, [wallCfg?.graphicBlendMode]);
+
+  const graphicOverlayOpacity = useMemo(() => {
+    return wallCfg?.graphicOverlayOpacity ?? WALL_GRAPHIC_OVERLAY_OPACITY;
+  }, [wallCfg?.graphicOverlayOpacity]);
 
   const pool = useMemo(() => {
     if (Array.isArray(data?.images) && data.images.length > 0) {
@@ -174,6 +179,7 @@ export function PhotoWall() {
   return (
     <div className="flex h-full min-h-0 w-full flex-1">
       <div className="relative h-full min-h-0 w-full overflow-hidden bg-[#0b1020]">
+        {/* Lớp nền: lưới ảnh toàn màn hình */}
         <div
           ref={wallViewportRef}
           className="absolute inset-0 z-0 flex min-h-0 min-w-0 flex-col overflow-hidden"
@@ -216,7 +222,8 @@ export function PhotoWall() {
           ))}
         </div>
 
-        <WallGraphicBlend blendMode={graphicBlendMode} />
+        {/* Lớp trên: khung 16:9 → nền trong khung → watermark + blendMode (WallGraphicBlend) */}
+        <WallGraphicBlend blendMode={graphicBlendMode} overlayOpacity={graphicOverlayOpacity} />
 
         {hero ? (
           <div

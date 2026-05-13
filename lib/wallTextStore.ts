@@ -4,6 +4,8 @@ import path from "path";
 import { WALL_MASK_TEXT } from "@/lib/wallConstants";
 import {
   WALL_GRAPHIC_DEFAULT_BLEND,
+  WALL_GRAPHIC_OVERLAY_OPACITY,
+  coerceGraphicOverlayOpacity,
   coerceWallGraphicBlendMode,
   resolveEnvWallGraphicBlendMode,
   type WallGraphicBlendMode,
@@ -21,6 +23,8 @@ export type WallTextPayload = {
   gridRows: number;
   /** `mix-blend-mode` cho lớp ảnh overlay giữa tường. */
   graphicBlendMode: WallGraphicBlendMode;
+  /** Độ mờ overlay / watermark ảnh (0 = trong suốt, 1 = đục hoàn toàn). */
+  graphicOverlayOpacity: number;
 };
 
 const DATA_PATH = path.join(process.cwd(), "data", "wall-text.json");
@@ -32,6 +36,7 @@ const DEFAULT: WallTextPayload = {
   gridCols: 100,
   gridRows: 60,
   graphicBlendMode: WALL_GRAPHIC_DEFAULT_BLEND,
+  graphicOverlayOpacity: WALL_GRAPHIC_OVERLAY_OPACITY,
 };
 
 export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
@@ -68,8 +73,20 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
 
   const blendFallback = resolveEnvWallGraphicBlendMode() ?? WALL_GRAPHIC_DEFAULT_BLEND;
   const graphicBlendMode = coerceWallGraphicBlendMode(o.graphicBlendMode, blendFallback);
+  const graphicOverlayOpacity = coerceGraphicOverlayOpacity(
+    o.graphicOverlayOpacity,
+    WALL_GRAPHIC_OVERLAY_OPACITY,
+  );
 
-  return { phrases, rotateIntervalMs, phraseCrossfadeMs, gridCols, gridRows, graphicBlendMode };
+  return {
+    phrases,
+    rotateIntervalMs,
+    phraseCrossfadeMs,
+    gridCols,
+    gridRows,
+    graphicBlendMode,
+    graphicOverlayOpacity,
+  };
 }
 
 async function ensureFile(): Promise<void> {

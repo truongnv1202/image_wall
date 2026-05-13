@@ -1,23 +1,29 @@
 "use client";
 
 import type { WallGraphicBlendMode } from "@/lib/wallGraphicUrls";
-import { WALL_GRAPHIC_OVERLAY_OPACITY, WALL_GRAPHIC_URL } from "@/lib/wallGraphicUrls";
+import { WALL_GRAPHIC_URL } from "@/lib/wallGraphicUrls";
 
 type Props = {
   blendMode: WallGraphicBlendMode;
+  /** 0–1, từ cấu hình tường — áp dụng cho lớp ảnh watermark (không phải nền trong khung). */
+  overlayOpacity: number;
 };
 
 /**
- * Một ảnh overlay; `mix-blend-mode` do cấu hình tường (`/api/wall-text`, chỉnh trên trang upload).
+ * Luồng hiển thị:
+ * 1. Lưới ảnh nền (PhotoWall, lớp z-0).
+ * 2. Khung 16:9 giữa màn hình — `isolate` để blend chỉ trong khung.
+ * 3. Nền trong khung (màu/độ mờ) trên vùng lưới.
+ * 4. Ảnh watermark đè lên + `mix-blend-mode` và opacity từ `/api/wall-text` (upload).
  */
-export function WallGraphicBlend({ blendMode }: Props) {
+export function WallGraphicBlend({ blendMode, overlayOpacity }: Props) {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center overflow-hidden"
+      className="wall-watermark-root pointer-events-none absolute inset-0 z-[1] flex items-center justify-center"
     >
       <div
-        className="relative"
+        className="wall-watermark-frame relative isolate overflow-hidden rounded-xl shadow-2xl ring-1 ring-white/15"
         style={{
           width: "min(100vw, calc(100vh * 16 / 9))",
           height: "min(100vh, calc(100vw * 9 / 16))",
@@ -25,11 +31,17 @@ export function WallGraphicBlend({ blendMode }: Props) {
           maxHeight: 1080,
         }}
       >
+        {/* Bước 1 — nền trong khung (trên lưới ảnh toàn màn phía dưới) */}
         <div
-          className="absolute inset-0"
+          className="wall-watermark-frame-bg absolute inset-0 bg-[#0b1020]/75"
+          style={{ boxShadow: "inset 0 0 72px rgba(0,0,0,0.5)" }}
+        />
+        {/* Bước 2 — ảnh watermark + blend (cấu hình upload) */}
+        <div
+          className="wall-watermark-art absolute inset-0"
           style={{
             mixBlendMode: blendMode,
-            opacity: WALL_GRAPHIC_OVERLAY_OPACITY,
+            opacity: overlayOpacity,
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
