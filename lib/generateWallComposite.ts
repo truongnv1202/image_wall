@@ -5,7 +5,9 @@ import path from "path";
 import sharp, { type Blend } from "sharp";
 
 import { readImages } from "@/lib/imageStore";
+import { WALL_MASK_TEXT } from "@/lib/wallConstants";
 import { cssBlendToSharp } from "@/lib/wallCompositeBlendMap";
+import { composeMosaicWithTextMask } from "@/lib/wallCompositeMosaicText";
 import { readWallCompositeMeta, writeWallCompositeMeta } from "@/lib/wallCompositeMeta";
 import { readWallText } from "@/lib/wallTextStore";
 import { STRIP_GAP_PX } from "@/lib/wallStripConstants";
@@ -141,37 +143,51 @@ export async function regenerateWallComposite(): Promise<void> {
       .jpeg({ quality: 90 })
       .toBuffer();
 
-    /* Cùng cấu hình với panel “Watermark” (wall-text): độ mờ = nhân kênh alpha; blend = Sharp composite. */
-    const overlayOpacity = Math.min(1, Math.max(0, wall.graphicOverlayOpacity));
-    const overlayBlend = cssBlendToSharp(wall.graphicBlendMode) as Blend;
-
     const meta = await readWallCompositeMeta();
 
-    if (overlayOpacity > 0.001) {
-      const overlayPath = OVERLAY_A;
-      let overlayBuf: Buffer;
-      try {
-        overlayBuf = await fs.readFile(overlayPath);
-      } catch (e) {
-        await writeWallCompositeMeta({
-          ...meta,
-          lastError: `Thiếu file overlay: ${overlayPath}`,
-        });
-        throw e;
+    /* Mosaic + mask chữ (câu đầu trong `phrases`): trong chữ lưới rõ, ngoài chữ lưới mờ trên nền tối. */
+    const phraseForMask = wall.phrases[0] ?? WALL_MASK_TEXT;
+    let mergedFinal: Buffer;
+    try {
+      mergedFinal = await composeMosaicWithTextMask(
+        merged,
+        outW,
+        outH,
+        phraseForMask,
+        wall.graphicOverlayOpacity,
+        wall.compositeBgMosaicOpacity,
+      );
+    } catch (e) {
+      console.warn("[wallComposite] mosaic + mask chữ lỗi, dùng overlay PNG (fallback):", e);
+      mergedFinal = merged;
+      const overlayOpacity = Math.min(1, Math.max(0, wall.graphicOverlayOpacity));
+      const overlayBlend = cssBlendToSharp(wall.graphicBlendMode) as Blend;
+      if (overlayOpacity > 0.001) {
+        const overlayPath = OVERLAY_A;
+        let overlayBuf: Buffer;
+        try {
+          overlayBuf = await fs.readFile(overlayPath);
+        } catch (e2) {
+          await writeWallCompositeMeta({
+            ...meta,
+            lastError: `Thiếu file overlay: ${overlayPath}`,
+          });
+          throw e2;
+        }
+        let overlay = await sharp(overlayBuf)
+          .resize(outW, outH, { fit: "cover", position: "centre" })
+          .ensureAlpha()
+          .png()
+          .toBuffer();
+        overlay = await applyAlphaScale(overlay, overlayOpacity);
+        mergedFinal = await sharp(mergedFinal)
+          .composite([{ input: overlay, left: 0, top: 0, blend: overlayBlend }])
+          .jpeg({ quality: 90 })
+          .toBuffer();
       }
-
-      let overlay = await sharp(overlayBuf)
-        .resize(outW, outH, { fit: "cover", position: "centre" })
-        .ensureAlpha()
-        .png()
-        .toBuffer();
-      overlay = await applyAlphaScale(overlay, overlayOpacity);
-
-      merged = await sharp(merged)
-        .composite([{ input: overlay, left: 0, top: 0, blend: overlayBlend }])
-        .jpeg({ quality: 90 })
-        .toBuffer();
     }
+
+    merged = mergedFinal;
 
     const outAbs = path.join(process.cwd(), OUT_REL);
     await fs.mkdir(path.dirname(outAbs), { recursive: true });

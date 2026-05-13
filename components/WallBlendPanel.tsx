@@ -87,9 +87,9 @@ export function WallBlendPanel({ apiUploadToken }: Props) {
     <div className="flex w-full max-w-xl flex-col gap-3 border border-zinc-800 bg-zinc-900/80 p-4 text-sm text-zinc-200">
       <div className="font-medium text-zinc-100">Watermark ảnh overlay (tường /wall)</div>
       <p className="text-xs text-zinc-500">
-        Giá trị lưu trong <code className="text-zinc-400">wall-text.json</code>: lưới trực tiếp trên{" "}
-        <code className="text-zinc-400">/wall</code> dùng CSS <code className="text-zinc-400">mix-blend-mode</code>; job
-        ghép ảnh server dùng cùng blend + độ mờ (Sharp <code className="text-zinc-400">composite</code> + nhân alpha).
+        Giá trị lưu trong <code className="text-zinc-400">wall-text.json</code>: trên <code className="text-zinc-400">/wall</code>{" "}
+        dùng CSS <code className="text-zinc-400">mix-blend-mode</code> + opacity; ảnh ghép server dùng{" "}
+        <strong>độ mờ</strong> để điều chỉnh độ rõ lưới trong vùng chữ (mask), blend chỉ áp dụng khi server fallback overlay PNG.
       </p>
       <label className="flex flex-col gap-1 text-xs text-zinc-400">
         <span>Chế độ blend</span>

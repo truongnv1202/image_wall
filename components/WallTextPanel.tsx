@@ -30,6 +30,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
   const [compositeOutWidth, setCompositeOutWidth] = useState(1920);
   const [compositeOutHeight, setCompositeOutHeight] = useState(1080);
   const [wallCompositeFadeMs, setWallCompositeFadeMs] = useState(900);
+  const [compositeBgMosaicOpacity, setCompositeBgMosaicOpacity] = useState(0.08);
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -46,6 +47,11 @@ export function WallTextPanel({ apiUploadToken }: Props) {
     setCompositeOutWidth(data.compositeOutWidth ?? 1920);
     setCompositeOutHeight(data.compositeOutHeight ?? 1080);
     setWallCompositeFadeMs(data.wallCompositeFadeMs ?? 900);
+    setCompositeBgMosaicOpacity(
+      typeof data.compositeBgMosaicOpacity === "number" && Number.isFinite(data.compositeBgMosaicOpacity)
+        ? data.compositeBgMosaicOpacity
+        : 0.08,
+    );
   }, [data]);
 
   async function save() {
@@ -73,6 +79,10 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       const nextOutW = Math.min(3840, Math.max(640, Math.floor(Number(compositeOutWidth)) || 1920));
       const nextOutH = Math.min(2160, Math.max(360, Math.floor(Number(compositeOutHeight)) || 1080));
       const nextWallCompositeFadeMs = Math.min(5000, Math.max(200, Math.floor(Number(wallCompositeFadeMs)) || 900));
+      const nextCompositeBgMosaicOpacity = Math.min(
+        0.5,
+        Math.max(0, Number(compositeBgMosaicOpacity) || 0.08),
+      );
       const wallTextUrl = `/api/wall-text?token=${encodeURIComponent(apiUploadToken)}`;
       const res = await fetch(wallTextUrl, {
         method: "POST",
@@ -94,6 +104,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
           compositeOutWidth: nextOutW,
           compositeOutHeight: nextOutH,
           wallCompositeFadeMs: nextWallCompositeFadeMs,
+          compositeBgMosaicOpacity: nextCompositeBgMosaicOpacity,
         } satisfies WallTextPayload),
       });
       const body = (await res.json().catch(() => ({}))) as WallTextPayload & { error?: string };
@@ -186,9 +197,10 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         Ảnh tường ghép (server, ~16:9)
       </div>
       <p className="text-xs text-zinc-500">
-        Server ghép lưới theo cùng kích thước ô ở trên, phủ overlay ảnh A; tường tải qua{" "}
-        <code className="text-zinc-400">/api/wall-composite/image</code> (file vẫn lưu dưới{" "}
-        <code className="text-zinc-400">public/generated/</code>). Trang tường khi có ảnh ghép sẽ hiển thị ảnh đó (mờ dần khi đổi phiên bản). Watermark chữ chỉ còn trên lưới trực tiếp khi chưa có ảnh ghép.
+        Server ghép lưới full khung rồi <strong>mask chữ</strong> (câu đầu trong danh sách bên dưới): trong chữ lưới rõ, ngoài chữ lưới mờ trên nền tối (kiểu mosaic mẫu). Độ mờ trong chữ dùng{" "}
+        <strong>watermark — độ mờ</strong> trên trang upload; ghost nền chỉnh số bên dưới. Nếu lỗi mask, server fallback overlay PNG A. Tải ảnh qua{" "}
+        <code className="text-zinc-400">/api/wall-composite/image</code> (file{" "}
+        <code className="text-zinc-400">public/generated/</code>). Trang tường khi có ảnh ghép sẽ hiển thị ảnh đó (mờ dần khi đổi phiên bản).
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs text-zinc-400">
@@ -212,6 +224,18 @@ export function WallTextPanel({ apiUploadToken }: Props) {
             step={50}
             value={Number.isFinite(wallCompositeFadeMs) ? wallCompositeFadeMs : 900}
             onChange={(e) => setWallCompositeFadeMs(Number(e.target.value))}
+            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
+          <span>Độ lưới ghost nền ngoài chữ (0–0.5)</span>
+          <input
+            type="number"
+            min={0}
+            max={0.5}
+            step={0.01}
+            value={Number.isFinite(compositeBgMosaicOpacity) ? compositeBgMosaicOpacity : 0.08}
+            onChange={(e) => setCompositeBgMosaicOpacity(Number(e.target.value))}
             className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
           />
         </label>
