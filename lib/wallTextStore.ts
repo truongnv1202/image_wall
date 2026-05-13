@@ -35,8 +35,10 @@ export type WallTextPayload = {
   compositeOutHeight: number;
   /** Thời gian crossfade khi tường đổi sang ảnh ghép mới (ms). */
   wallCompositeFadeMs: number;
-  /** Độ hiện lưới ảnh ở nền ngoài vùng chữ (0–0.5) — hiệu ứng “ghost” như ảnh mẫu mosaic. */
+  /** Độ hiện lưới ảnh ở nền ngoài vùng chữ (0–0.5) — ghost mosaic. */
   compositeBgMosaicOpacity: number;
+  /** Đẩy sáng vùng chữ (0–0.55): khuếch đại hướng về trắng theo mask. */
+  compositeTextBrighten: number;
 };
 
 const DATA_PATH = path.join(process.cwd(), "data", "wall-text.json");
@@ -56,6 +58,7 @@ const DEFAULT: WallTextPayload = {
   compositeOutHeight: 1080,
   wallCompositeFadeMs: 900,
   compositeBgMosaicOpacity: 0.08,
+  compositeTextBrighten: 0.28,
 };
 
 export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
@@ -139,6 +142,12 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
       : DEFAULT.compositeBgMosaicOpacity;
   compositeBgMosaicOpacity = Math.min(Math.max(0, compositeBgMosaicOpacity), 0.5);
 
+  let compositeTextBrighten =
+    typeof o.compositeTextBrighten === "number" && Number.isFinite(o.compositeTextBrighten)
+      ? o.compositeTextBrighten
+      : DEFAULT.compositeTextBrighten;
+  compositeTextBrighten = Math.min(Math.max(0, compositeTextBrighten), 0.55);
+
   return {
     phrases,
     rotateIntervalMs,
@@ -154,6 +163,7 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
     compositeOutHeight,
     wallCompositeFadeMs,
     compositeBgMosaicOpacity,
+    compositeTextBrighten,
   };
 }
 

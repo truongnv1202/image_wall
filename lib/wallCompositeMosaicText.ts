@@ -16,7 +16,7 @@ function estimateFontSize(outW: number, outH: number, lines: string[]): number {
   const maxLen = Math.max(1, ...lines.map((l) => l.length));
   const byW = (outW * 0.88) / (maxLen * 0.58);
   const byH = (outH * 0.72) / (n * 1.12);
-  return Math.floor(Math.max(28, Math.min(byW, byH, outH * 0.24)));
+  return Math.floor(Math.max(32, Math.min(byW, byH, outH * 0.26)));
 }
 
 function buildTextMaskSvg(outW: number, outH: number, lines: string[], fontSize: number): string {
@@ -26,7 +26,8 @@ function buildTextMaskSvg(outW: number, outH: number, lines: string[], fontSize:
   const cx = outW / 2;
   const texts = lines.map((line, i) => {
     const y = startY + i * lineHeight;
-    return `<text x="${cx}" y="${y}" fill="white" text-anchor="middle" font-size="${fontSize}" font-weight="700" font-family="DejaVu Sans, Liberation Sans, system-ui, -apple-system, Segoe UI, Arial, sans-serif">${escapeXml(
+    const sw = Math.max(2, Math.round(fontSize * 0.028));
+    return `<text x="${cx}" y="${y}" fill="rgb(255,255,255)" text-anchor="middle" font-size="${fontSize}" font-weight="700" stroke="rgb(252,252,255)" stroke-width="${sw}" stroke-opacity="0.92" paint-order="stroke fill" font-family="DejaVu Sans, Liberation Sans, system-ui, -apple-system, Segoe UI, Arial, sans-serif">${escapeXml(
       line.toUpperCase(),
     )}</text>`;
   });
@@ -38,7 +39,8 @@ ${texts.join("\n")}
 
 /**
  * Ảnh mẫu: lưới ảnh phủ toàn khung; trong chữ hiện rõ (insideOpacity), ngoài chữ chỉ lờ mờ (outsideOpacity) trên nền tối.
- * `insideOpacity` ≈ `graphicOverlayOpacity` (0–1). `outsideOpacity` ≈ “ghost” nền (0–0.5).
+ * `insideOpacity` ≈ `graphicOverlayOpacity` (0–1). `outsideOpacity` ≈ ghost nền (0–0.5).
+ * `textBrighten`: sau khi trộn, đẩy RGB về phía trắng trong vùng mask (0 = tắt).
  */
 export async function composeMosaicWithTextMask(
   mosaicJpeg: Buffer,
@@ -47,6 +49,7 @@ export async function composeMosaicWithTextMask(
   phraseFirst: string,
   insideOpacity: number,
   outsideOpacity: number,
+  textBrighten: number,
 ): Promise<Buffer> {
   const lines = phraseFirst
     .split(/\r?\n/)
@@ -80,15 +83,25 @@ export async function composeMosaicWithTextMask(
 
   const bIn = Math.min(1, Math.max(0.02, insideOpacity));
   const bOut = Math.min(0.5, Math.max(0, outsideOpacity));
+  const liftAmt = Math.min(0.55, Math.max(0, textBrighten));
 
   const n = outW * outH;
   const out = Buffer.alloc(n * 3);
   for (let i = 0, p = 0; i < n; i++, p += 3) {
     const m = (maskData[i] ?? 0) / 255;
     const bf = bOut + m * (bIn - bOut);
-    out[p] = Math.round(BG.r * (1 - bf) + (mosaicData[p] ?? 0) * bf);
-    out[p + 1] = Math.round(BG.g * (1 - bf) + (mosaicData[p + 1] ?? 0) * bf);
-    out[p + 2] = Math.round(BG.b * (1 - bf) + (mosaicData[p + 2] ?? 0) * bf);
+    let r = Math.round(BG.r * (1 - bf) + (mosaicData[p] ?? 0) * bf);
+    let g = Math.round(BG.g * (1 - bf) + (mosaicData[p + 1] ?? 0) * bf);
+    let b = Math.round(BG.b * (1 - bf) + (mosaicData[p + 2] ?? 0) * bf);
+    if (liftAmt > 0 && m > 0) {
+      const lift = liftAmt * m;
+      r = Math.min(255, Math.round(r + (255 - r) * lift));
+      g = Math.min(255, Math.round(g + (255 - g) * lift));
+      b = Math.min(255, Math.round(b + (255 - b) * lift));
+    }
+    out[p] = r;
+    out[p + 1] = g;
+    out[p + 2] = b;
   }
 
   return sharp(out, {

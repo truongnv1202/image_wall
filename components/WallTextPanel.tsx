@@ -31,6 +31,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
   const [compositeOutHeight, setCompositeOutHeight] = useState(1080);
   const [wallCompositeFadeMs, setWallCompositeFadeMs] = useState(900);
   const [compositeBgMosaicOpacity, setCompositeBgMosaicOpacity] = useState(0.08);
+  const [compositeTextBrighten, setCompositeTextBrighten] = useState(0.28);
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -51,6 +52,11 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       typeof data.compositeBgMosaicOpacity === "number" && Number.isFinite(data.compositeBgMosaicOpacity)
         ? data.compositeBgMosaicOpacity
         : 0.08,
+    );
+    setCompositeTextBrighten(
+      typeof data.compositeTextBrighten === "number" && Number.isFinite(data.compositeTextBrighten)
+        ? data.compositeTextBrighten
+        : 0.28,
     );
   }, [data]);
 
@@ -83,6 +89,10 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         0.5,
         Math.max(0, Number(compositeBgMosaicOpacity) || 0.08),
       );
+      const nextCompositeTextBrighten = Math.min(
+        0.55,
+        Math.max(0, Number(compositeTextBrighten) || 0.28),
+      );
       const wallTextUrl = `/api/wall-text?token=${encodeURIComponent(apiUploadToken)}`;
       const res = await fetch(wallTextUrl, {
         method: "POST",
@@ -105,6 +115,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
           compositeOutHeight: nextOutH,
           wallCompositeFadeMs: nextWallCompositeFadeMs,
           compositeBgMosaicOpacity: nextCompositeBgMosaicOpacity,
+          compositeTextBrighten: nextCompositeTextBrighten,
         } satisfies WallTextPayload),
       });
       const body = (await res.json().catch(() => ({}))) as WallTextPayload & { error?: string };
@@ -197,8 +208,8 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         Ảnh tường ghép (server, ~16:9)
       </div>
       <p className="text-xs text-zinc-500">
-        Server ghép lưới full khung rồi <strong>mask chữ</strong> (câu đầu trong danh sách bên dưới): trong chữ lưới rõ, ngoài chữ lưới mờ trên nền tối (kiểu mosaic mẫu). Độ mờ trong chữ dùng{" "}
-        <strong>watermark — độ mờ</strong> trên trang upload; ghost nền chỉnh số bên dưới. Nếu lỗi mask, server fallback overlay PNG A. Tải ảnh qua{" "}
+        Server ghép lưới full khung rồi <strong>mask chữ</strong> (câu đầu trong danh sách bên dưới): trong chữ lưới rõ, ngoài chữ lưới mờ trên nền tối (kiểu mosaic mẫu). Lưới nền vẫn theo <strong>số ô + kích thước ô</strong> ở trên. Độ mờ trong chữ dùng{" "}
+        <strong>watermark — độ mờ</strong> trên trang upload; ghost nền và độ sáng chữ chỉnh hai số bên dưới. Nếu lỗi mask, server fallback overlay PNG A. Tải ảnh qua{" "}
         <code className="text-zinc-400">/api/wall-composite/image</code> (file{" "}
         <code className="text-zinc-400">public/generated/</code>). Trang tường khi có ảnh ghép sẽ hiển thị ảnh đó (mờ dần khi đổi phiên bản).
       </p>
@@ -236,6 +247,18 @@ export function WallTextPanel({ apiUploadToken }: Props) {
             step={0.01}
             value={Number.isFinite(compositeBgMosaicOpacity) ? compositeBgMosaicOpacity : 0.08}
             onChange={(e) => setCompositeBgMosaicOpacity(Number(e.target.value))}
+            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
+          <span>Độ sáng chữ trong mask (0–0.55)</span>
+          <input
+            type="number"
+            min={0}
+            max={0.55}
+            step={0.01}
+            value={Number.isFinite(compositeTextBrighten) ? compositeTextBrighten : 0.28}
+            onChange={(e) => setCompositeTextBrighten(Number(e.target.value))}
             className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
           />
         </label>

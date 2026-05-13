@@ -14,5 +14,6 @@
   "compositeOutWidth": 1920,
   "compositeOutHeight": 1080,
   "wallCompositeFadeMs": 900,
-  "compositeBgMosaicOpacity": 0.08
+  "compositeBgMosaicOpacity": 0.08,
+  "compositeTextBrighten": 0.28
 }

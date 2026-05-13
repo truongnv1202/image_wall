@@ -83,6 +83,7 @@ export async function regenerateWallComposite(): Promise<void> {
 
     const cols = wall.gridCols;
     const rows = wall.gridRows;
+    /* Lưới nền: cols × rows × ô (gridTile*) — từ wall-text trang upload. */
     const outW = wall.compositeOutWidth;
     const outH = wall.compositeOutHeight;
     const gap = STRIP_GAP_PX;
@@ -156,6 +157,7 @@ export async function regenerateWallComposite(): Promise<void> {
         phraseForMask,
         wall.graphicOverlayOpacity,
         wall.compositeBgMosaicOpacity,
+        wall.compositeTextBrighten,
       );
     } catch (e) {
       console.warn("[wallComposite] mosaic + mask chữ lỗi, dùng overlay PNG (fallback):", e);
