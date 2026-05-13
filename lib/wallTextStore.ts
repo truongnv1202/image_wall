@@ -21,7 +21,7 @@ export type WallTextPayload = {
   gridCols: number;
   /** Số ảnh theo chiều dọc. */
   gridRows: number;
-  /** Kích thước mỗi ô lưới trên tường (px) — mặc định 54×72 (3:4). */
+  /** Kích thước mỗi ô lưới trên tường (px) — mặc định 54×72 (3:4); tối thiểu 6×8. */
   gridTileWidthPx: number;
   gridTileHeightPx: number;
   /** `mix-blend-mode` cho lớp ảnh overlay giữa tường. */
@@ -91,13 +91,13 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
     typeof o.gridTileWidthPx === "number" && Number.isFinite(o.gridTileWidthPx)
       ? Math.floor(o.gridTileWidthPx)
       : DEFAULT.gridTileWidthPx;
-  gridTileWidthPx = Math.min(Math.max(24, gridTileWidthPx), 256);
+  gridTileWidthPx = Math.min(Math.max(6, gridTileWidthPx), 256);
 
   let gridTileHeightPx =
     typeof o.gridTileHeightPx === "number" && Number.isFinite(o.gridTileHeightPx)
       ? Math.floor(o.gridTileHeightPx)
       : DEFAULT.gridTileHeightPx;
-  gridTileHeightPx = Math.min(Math.max(24, gridTileHeightPx), 384);
+  gridTileHeightPx = Math.min(Math.max(8, gridTileHeightPx), 384);
 
   const blendFallback = resolveEnvWallGraphicBlendMode() ?? WALL_GRAPHIC_DEFAULT_BLEND;
   const graphicBlendMode = coerceWallGraphicBlendMode(o.graphicBlendMode, blendFallback);

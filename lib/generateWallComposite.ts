@@ -84,6 +84,7 @@ export async function regenerateWallComposite(): Promise<void> {
     const outW = wall.compositeOutWidth;
     const outH = wall.compositeOutHeight;
     const gap = STRIP_GAP_PX;
+    /* Kích thước ô lưới từ `data/wall-text.json` (cùng cấu hình trang upload / PhotoWall). */
     const cellW = wall.gridTileWidthPx;
     const cellH = wall.gridTileHeightPx;
 

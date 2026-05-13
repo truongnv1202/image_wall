@@ -62,8 +62,8 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       const phraseCrossfadeMs = Math.min(4000, Math.max(150, Math.round(Number(crossfadeMs)) || 800));
       const nextGridCols = Math.min(240, Math.max(10, Math.floor(Number(gridCols)) || 100));
       const nextGridRows = Math.min(140, Math.max(6, Math.floor(Number(gridRows)) || 60));
-      const nextTileW = Math.min(256, Math.max(24, Math.floor(Number(gridTileWidthPx)) || 54));
-      const nextTileH = Math.min(384, Math.max(24, Math.floor(Number(gridTileHeightPx)) || 72));
+      const nextTileW = Math.min(256, Math.max(6, Math.floor(Number(gridTileWidthPx)) || 54));
+      const nextTileH = Math.min(384, Math.max(8, Math.floor(Number(gridTileHeightPx)) || 72));
       const graphicBlendMode = data?.graphicBlendMode ?? WALL_GRAPHIC_DEFAULT_BLEND;
       const graphicOverlayOpacity = data?.graphicOverlayOpacity ?? WALL_GRAPHIC_OVERLAY_OPACITY;
       const nextCompositeIntervalMs = Math.min(
@@ -150,10 +150,10 @@ export function WallTextPanel({ apiUploadToken }: Props) {
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-zinc-400">
-          <span>Kích thước ô lưới — rộng (px, 24–256)</span>
+          <span>Kích thước ô lưới — rộng (px, 6–256)</span>
           <input
             type="number"
-            min={24}
+            min={6}
             max={256}
             step={1}
             value={Number.isFinite(gridTileWidthPx) ? gridTileWidthPx : 54}
@@ -162,10 +162,10 @@ export function WallTextPanel({ apiUploadToken }: Props) {
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-zinc-400">
-          <span>Kích thước ô lưới — cao (px, 24–384)</span>
+          <span>Kích thước ô lưới — cao (px, 8–384)</span>
           <input
             type="number"
-            min={24}
+            min={8}
             max={384}
             step={1}
             value={Number.isFinite(gridTileHeightPx) ? gridTileHeightPx : 72}
@@ -186,7 +186,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         Ảnh tường ghép (server, ~16:9)
       </div>
       <p className="text-xs text-zinc-500">
-        Server ghép lưới theo số ô ở trên, phủ overlay ảnh A; tường tải qua{" "}
+        Server ghép lưới theo cùng kích thước ô ở trên, phủ overlay ảnh A; tường tải qua{" "}
         <code className="text-zinc-400">/api/wall-composite/image</code> (file vẫn lưu dưới{" "}
         <code className="text-zinc-400">public/generated/</code>). Trang tường khi có ảnh ghép sẽ hiển thị ảnh đó (mờ dần khi đổi phiên bản). Watermark chữ chỉ còn trên lưới trực tiếp khi chưa có ảnh ghép.
       </p>
