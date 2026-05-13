@@ -60,10 +60,10 @@ body {
 .wall-hero-card--fly {
   top: 12px;
   left: 12px;
-  width: 27px;
-  height: 36px;
-  max-width: 27px;
-  max-height: 36px;
+  width: 54px;
+  height: 72px;
+  max-width: 54px;
+  max-height: 72px;
   transform: none;
 }
 

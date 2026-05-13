@@ -2,9 +2,9 @@
 export const STAGE_W = 1920;
 export const STAGE_H = 1080;
 
-/** Ô ảnh trên dải (3:4), tĩnh — không marquee. */
-export const STRIP_TILE_W = 27;
-export const STRIP_TILE_H = 36;
+/** Ô ảnh trên dải (3:4, 54×72px), tĩnh — không marquee. */
+export const STRIP_TILE_W = 54;
+export const STRIP_TILE_H = 72;
 
 /** Popup ảnh mới (giới hạn tối đa). */
 export const HERO_MAX_W = 780;

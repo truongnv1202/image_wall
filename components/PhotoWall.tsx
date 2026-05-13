@@ -107,7 +107,7 @@ export function PhotoWall() {
     return () => mq.removeEventListener("change", apply);
   }, []);
 
-  /** Ảnh mới: hàng chờ popup → bay góc trái trên (27×36px, trùng ô lưới). */
+  /** Ảnh mới: hàng chờ popup → bay góc trái trên (54×72px, trùng ô lưới). */
   useEffect(() => {
     const imgs = data?.images;
     if (!imgs?.length) return;
@@ -212,7 +212,7 @@ export function PhotoWall() {
                       className="block object-cover"
                       loading="lazy"
                       decoding="async"
-                      sizes="27px"
+                      sizes="54px"
                       draggable={false}
                     />
                   </div>

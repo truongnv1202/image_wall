@@ -124,7 +124,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         </label>
       </div>
       <p className="text-xs text-zinc-500">
-        Mỗi ô trên tường có tỷ lệ khung 3×4 (dọc); ảnh hiển thị vừa khung, không kéo méo (có thể có viền
+        Mỗi ô trên tường là <strong>54×72px</strong>, tỷ lệ khung 3×4 (dọc); ảnh hiển thị vừa khung, không kéo méo (có thể có viền
         đen nếu ảnh không đúng tỷ lệ). Thiếu ảnh so với số ô thì lặp theo thứ tự, ảnh mới vẫn ở đầu danh
         sách.
       </p>
