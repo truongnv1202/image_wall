@@ -44,7 +44,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
     setGridRows(data.gridRows ?? 60);
     setGridTileWidthPx(data.gridTileWidthPx ?? 54);
     setGridTileHeightPx(data.gridTileHeightPx ?? 72);
-    setCompositeIntervalSec(Math.max(10, Math.round((data.compositeIntervalMs ?? 60_000) / 1000)));
+    setCompositeIntervalSec(Math.max(60, Math.round((data.compositeIntervalMs ?? 60_000) / 1000)));
     setCompositeOutWidth(data.compositeOutWidth ?? 1920);
     setCompositeOutHeight(data.compositeOutHeight ?? 1080);
     setWallCompositeFadeMs(data.wallCompositeFadeMs ?? 900);
@@ -80,7 +80,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       const graphicOverlayOpacity = data?.graphicOverlayOpacity ?? WALL_GRAPHIC_OVERLAY_OPACITY;
       const nextCompositeIntervalMs = Math.min(
         3_600_000,
-        Math.max(10_000, Math.round(Number(compositeIntervalSec) * 1000) || 60_000),
+        Math.max(60_000, Math.round(Number(compositeIntervalSec) * 1000) || 60_000),
       );
       const nextOutW = Math.min(3840, Math.max(640, Math.floor(Number(compositeOutWidth)) || 1920));
       const nextOutH = Math.min(2160, Math.max(360, Math.floor(Number(compositeOutHeight)) || 1080));
@@ -208,17 +208,17 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         Ảnh tường ghép (server, ~16:9)
       </div>
       <p className="text-xs text-zinc-500">
-        Server ghép lưới full khung rồi <strong>mask chữ</strong> (câu đầu trong danh sách bên dưới): trong chữ lưới rõ, ngoài chữ lưới mờ trên nền tối (kiểu mosaic mẫu). Lưới nền vẫn theo <strong>số ô + kích thước ô</strong> ở trên. Độ mờ trong chữ dùng{" "}
-        <strong>watermark — độ mờ</strong> trên trang upload; ghost nền và độ sáng chữ chỉnh hai số bên dưới. Nếu lỗi mask, server fallback overlay PNG A. Tải ảnh qua{" "}
-        <code className="text-zinc-400">/api/wall-composite/image</code> (file{" "}
-        <code className="text-zinc-400">public/generated/</code>). Trang tường khi có ảnh ghép sẽ hiển thị ảnh đó (mờ dần khi đổi phiên bản).
+        Server ghép <strong>lưới ảnh upload</strong> (API hoặc trang upload), mỗi ô theo kích thước ở trên; thiếu ảnh so với số ô thì <strong>lặp lại</strong> theo vòng. Sau đó resize đúng <strong>16:9</strong> theo pixel xuất bên dưới, rồi <strong>blend ảnh A</strong> (
+        <code className="text-zinc-400">wall-composite-A.png</code>) với cùng <strong>chế độ blend và độ mờ</strong> như mục watermark trên trang upload. Job chạy lại tối thiểu mỗi phút; ảnh mới thay file cũ, tường tự tải phiên bản mới. File:{" "}
+        <code className="text-zinc-400">/api/wall-composite/image</code> ·{" "}
+        <code className="text-zinc-400">public/generated/wall-composite.jpg</code>.
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs text-zinc-400">
-          <span>Chu kỳ tạo lại ảnh ghép (giây, 10–3600)</span>
+          <span>Chu kỳ tạo lại ảnh ghép (giây, 60–3600)</span>
           <input
             type="number"
-            min={10}
+            min={60}
             max={3600}
             step={1}
             value={Number.isFinite(compositeIntervalSec) ? compositeIntervalSec : 60}

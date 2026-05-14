@@ -5,9 +5,7 @@ import path from "path";
 import sharp, { type Blend } from "sharp";
 
 import { readImages } from "@/lib/imageStore";
-import { WALL_MASK_TEXT } from "@/lib/wallConstants";
 import { cssBlendToSharp } from "@/lib/wallCompositeBlendMap";
-import { composeMosaicWithTextMask } from "@/lib/wallCompositeMosaicText";
 import { readWallCompositeMeta, writeWallCompositeMeta } from "@/lib/wallCompositeMeta";
 import { readWallText } from "@/lib/wallTextStore";
 import { STRIP_GAP_PX } from "@/lib/wallStripConstants";
@@ -60,6 +58,53 @@ async function applyAlphaScale(png: Buffer, opacity: number): Promise<Buffer> {
     .toBuffer();
 }
 
+async function unlinkStaleTmpJpegs(dir: string): Promise<void> {
+  let names: string[];
+  try {
+    names = await fs.readdir(dir);
+  } catch {
+    return;
+  }
+  await Promise.all(
+    names
+      .filter((n) => n.startsWith(".tmp-") && n.endsWith(".jpg"))
+      .map((n) => fs.unlink(path.join(dir, n)).catch(() => {})),
+  );
+}
+
+/** Ghép một ô: thử lần lượt ảnh trong pool (lặp vòng) cho đến khi đọc được; không được thì ô nền tối. */
+async function tileForCell(
+  pool: string[],
+  cellW: number,
+  cellH: number,
+  cellIndex: number,
+): Promise<Buffer> {
+  const len = pool.length;
+  for (let attempt = 0; attempt < len; attempt++) {
+    const url = pool[(cellIndex + attempt) % len]!;
+    try {
+      const raw = await loadImageBytes(url);
+      return await sharp(raw)
+        .rotate()
+        .resize(cellW, cellH, { fit: "cover", position: "centre" })
+        .jpeg({ quality: 82 })
+        .toBuffer();
+    } catch (e) {
+      console.warn("[wallComposite] bỏ qua URL, thử ảnh khác trong pool:", url.slice(0, 120), e);
+    }
+  }
+  return sharp({
+    create: {
+      width: cellW,
+      height: cellH,
+      channels: 3,
+      background: { r: 11, g: 16, b: 32 },
+    },
+  })
+    .jpeg({ quality: 82 })
+    .toBuffer();
+}
+
 export async function regenerateWallComposite(): Promise<void> {
   const prev = genLock;
   let done!: () => void;
@@ -83,11 +128,9 @@ export async function regenerateWallComposite(): Promise<void> {
 
     const cols = wall.gridCols;
     const rows = wall.gridRows;
-    /* Lưới nền: cols × rows × ô (gridTile*) — từ wall-text trang upload. */
     const outW = wall.compositeOutWidth;
     const outH = wall.compositeOutHeight;
     const gap = STRIP_GAP_PX;
-    /* Kích thước ô lưới từ `data/wall-text.json` (cùng cấu hình trang upload / PhotoWall). */
     const cellW = wall.gridTileWidthPx;
     const cellH = wall.gridTileHeightPx;
 
@@ -95,49 +138,29 @@ export async function regenerateWallComposite(): Promise<void> {
     const gridH = rows * cellH + Math.max(0, rows - 1) * gap;
 
     const composites: { input: Buffer; left: number; top: number }[] = [];
-    let idx = 0;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const url = pool[idx % pool.length]!;
-        idx++;
-        let raw: Buffer;
-        try {
-          raw = await loadImageBytes(url);
-        } catch (e) {
-          console.warn("[wallComposite] bỏ qua ô, không đọc được:", url, e);
-          continue;
-        }
-        const tile = await sharp(raw)
-          .rotate()
-          .resize(cellW, cellH, { fit: "cover", position: "centre" })
-          .jpeg({ quality: 82 })
-          .toBuffer();
-        composites.push({
-          input: tile,
-          left: c * (cellW + gap),
-          top: r * (cellH + gap),
-        });
-      }
-    }
-
-    if (composites.length === 0) {
-      const meta = await readWallCompositeMeta();
-      await writeWallCompositeMeta({
-        ...meta,
-        lastError: "Không ghép được ô nào (ảnh lỗi)",
+    const cellCount = rows * cols;
+    for (let i = 0; i < cellCount; i++) {
+      const r = Math.floor(i / cols);
+      const c = i % cols;
+      const tile = await tileForCell(pool, cellW, cellH, i);
+      composites.push({
+        input: tile,
+        left: c * (cellW + gap),
+        top: r * (cellH + gap),
       });
-      return;
     }
 
-    let base = sharp({
+    let merged = await sharp({
       create: {
         width: gridW,
         height: gridH,
         channels: 3,
         background: { r: 11, g: 16, b: 32 },
       },
-    });
-    let merged = await base.composite(composites).jpeg({ quality: 88 }).toBuffer();
+    })
+      .composite(composites)
+      .jpeg({ quality: 88 })
+      .toBuffer();
 
     merged = await sharp(merged)
       .resize(outW, outH, { fit: "cover", position: "centre" })
@@ -146,64 +169,45 @@ export async function regenerateWallComposite(): Promise<void> {
 
     const meta = await readWallCompositeMeta();
 
-    /* Mosaic + mask chữ (câu đầu trong `phrases`): trong chữ lưới rõ, ngoài chữ lưới mờ trên nền tối. */
-    const phraseForMask = wall.phrases[0] ?? WALL_MASK_TEXT;
-    let mergedFinal: Buffer;
-    try {
-      mergedFinal = await composeMosaicWithTextMask(
-        merged,
-        outW,
-        outH,
-        phraseForMask,
-        wall.graphicOverlayOpacity,
-        wall.compositeBgMosaicOpacity,
-        wall.compositeTextBrighten,
-      );
-    } catch (e) {
-      console.warn("[wallComposite] mosaic + mask chữ lỗi, dùng overlay PNG (fallback):", e);
-      mergedFinal = merged;
-      const overlayOpacity = Math.min(1, Math.max(0, wall.graphicOverlayOpacity));
-      const overlayBlend = cssBlendToSharp(wall.graphicBlendMode) as Blend;
-      if (overlayOpacity > 0.001) {
-        const overlayPath = OVERLAY_A;
-        let overlayBuf: Buffer;
-        try {
-          overlayBuf = await fs.readFile(overlayPath);
-        } catch (e2) {
-          await writeWallCompositeMeta({
-            ...meta,
-            lastError: `Thiếu file overlay: ${overlayPath}`,
-          });
-          throw e2;
-        }
-        let overlay = await sharp(overlayBuf)
-          .resize(outW, outH, { fit: "cover", position: "centre" })
-          .ensureAlpha()
-          .png()
-          .toBuffer();
-        overlay = await applyAlphaScale(overlay, overlayOpacity);
-        mergedFinal = await sharp(mergedFinal)
-          .composite([{ input: overlay, left: 0, top: 0, blend: overlayBlend }])
-          .jpeg({ quality: 90 })
-          .toBuffer();
+    /* Blend overlay A: cùng blend + opacity với watermark trang upload (`graphicBlendMode`, `graphicOverlayOpacity`). */
+    const overlayOpacity = Math.min(1, Math.max(0, wall.graphicOverlayOpacity));
+    const overlayBlend = cssBlendToSharp(wall.graphicBlendMode) as Blend;
+    let mergedFinal = merged;
+    if (overlayOpacity > 0.001) {
+      let overlayBuf: Buffer;
+      try {
+        overlayBuf = await fs.readFile(OVERLAY_A);
+      } catch (e2) {
+        await writeWallCompositeMeta({
+          ...meta,
+          lastError: `Thiếu file overlay: ${OVERLAY_A}`,
+        });
+        throw e2;
       }
+      let overlay = await sharp(overlayBuf)
+        .resize(outW, outH, { fit: "cover", position: "centre" })
+        .ensureAlpha()
+        .png()
+        .toBuffer();
+      overlay = await applyAlphaScale(overlay, overlayOpacity);
+      mergedFinal = await sharp(mergedFinal)
+        .composite([{ input: overlay, left: 0, top: 0, blend: overlayBlend }])
+        .jpeg({ quality: 90 })
+        .toBuffer();
     }
 
-    merged = mergedFinal;
-
     const outAbs = path.join(process.cwd(), OUT_REL);
-    await fs.mkdir(path.dirname(outAbs), { recursive: true });
-    const tmp = path.join(
-      path.dirname(outAbs),
-      `.tmp-${randomBytes(8).toString("hex")}.jpg`,
-    );
-    await fs.writeFile(tmp, merged);
+    const outDir = path.dirname(outAbs);
+    await fs.mkdir(outDir, { recursive: true });
+    const tmp = path.join(outDir, `.tmp-${randomBytes(8).toString("hex")}.jpg`);
+    await fs.writeFile(tmp, mergedFinal);
     try {
       await fs.unlink(outAbs);
     } catch {
       /* chưa có file cũ */
     }
     await fs.rename(tmp, outAbs);
+    await unlinkStaleTmpJpegs(outDir);
 
     await writeWallCompositeMeta({
       version: meta.version + 1,

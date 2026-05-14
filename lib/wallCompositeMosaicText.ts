@@ -6,8 +6,14 @@ import sharp from "sharp";
 /** Nền tối giống tường / mẫu (#0b1020). */
 const BG = { r: 11, g: 16, b: 32 } as const;
 
-/** Noto Sans Bold (OFL) — vẽ mask chữ khi máy chủ không có DejaVu/Liberation (Windows/Docker). */
-const MASK_FONT_TTF = path.join(process.cwd(), "lib", "fonts", "NotoSans-Bold.ttf");
+/** Noto Sans Bold (OFL) — đặt dưới `public/` để Docker/Next standalone luôn có file (không chỉ trace `lib/`). */
+const MASK_FONT_TTF = path.join(
+  process.cwd(),
+  "public",
+  "fonts",
+  "wall-composite",
+  "NotoSans-Bold.ttf",
+);
 
 /** `null` = chưa đọc; `""` = thiếu file / lỗi đọc. */
 let cachedMaskFontFaceCss: string | null | undefined;
@@ -127,7 +133,7 @@ export async function composeMosaicWithTextMask(
   }
   if (maxMask < 20) {
     throw new Error(
-      "Mask chữ gần như toàn đen (chữ SVG không vẽ được — thường do thiếu font trên máy chủ; cần file lib/fonts/NotoSans-Bold.ttf).",
+      "Mask chữ gần như toàn đen (chữ SVG không vẽ được — cần file public/fonts/wall-composite/NotoSans-Bold.ttf trong bản chạy).",
     );
   }
 

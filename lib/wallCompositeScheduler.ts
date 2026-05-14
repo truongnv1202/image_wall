@@ -18,7 +18,7 @@ async function tickAndSchedule() {
   try {
     const { readWallText } = await import("@/lib/wallTextStore");
     const w = await readWallText();
-    const ms = Math.max(10_000, w.compositeIntervalMs);
+    const ms = Math.max(60_000, w.compositeIntervalMs);
     timer = setTimeout(() => void tickAndSchedule(), ms);
   } catch {
     timer = setTimeout(() => void tickAndSchedule(), 60_000);
@@ -30,6 +30,6 @@ export function startWallCompositeScheduler(): void {
   if (started) return;
   started = true;
   clearTimer();
-  /* Tick đầu nhanh để tường có ảnh ghép sớm; các lần sau theo compositeIntervalMs. */
+  /* Tick đầu nhanh; các lần sau tối thiểu 60s, theo compositeIntervalMs trên site upload. */
   timer = setTimeout(() => void tickAndSchedule(), 800);
 }
