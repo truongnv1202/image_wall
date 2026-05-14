@@ -3,21 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
-import { DEFAULT_IMAGE_URLS } from "@/lib/mockImages";
 import type { ImagesPayload } from "@/lib/types";
-import {
-  WALL_GRAPHIC_DEFAULT_BLEND,
-  WALL_GRAPHIC_OVERLAY_OPACITY,
-  resolveEnvWallGraphicBlendMode,
-} from "@/lib/wallGraphicUrls";
 import type { WallTextPayload } from "@/lib/wallTextStore";
 import { HERO_FLY_MS, HERO_POPUP_MS, STRIP_GAP_PX, STRIP_TILE_H, STRIP_TILE_W } from "@/lib/wallStripConstants";
-import { WallCompositeBackground } from "@/components/WallCompositeBackground";
-import { WallGraphicBlend } from "@/components/WallGraphicBlend";
 
 const POLL_MS = 4000;
 const WALL_TEXT_POLL_MS = 10_000;
-const COMPOSITE_POLL_MS = 2500;
 
 const fetcher = (url: string) =>
   fetch(url, { cache: "no-store" }).then((r) => {
@@ -26,25 +17,9 @@ const fetcher = (url: string) =>
   });
 
 const fetcherWallText = (url: string) =>
-  fetch(url).then((r) => {
-    if (!r.ok) throw new Error("fetch failed");
-    return r.json() as Promise<WallTextPayload>;
-  });
-
-type WallCompositeApi = {
-  url: string;
-  version: number;
-  updatedAt: string;
-  ready: boolean;
-  lastError: string | null;
-  /** `data/images.json` mới hơn `wall-composite.jpg` — ảnh upload chưa vào bản ghép hiện tại. */
-  compositeOutOfSync?: boolean;
-};
-
-const fetcherWallComposite = (url: string) =>
   fetch(url, { cache: "no-store" }).then((r) => {
     if (!r.ok) throw new Error("fetch failed");
-    return r.json() as Promise<WallCompositeApi>;
+    return r.json() as Promise<WallTextPayload>;
   });
 
 type HeroState = { url: string; phase: "popup" | "fly" } | null;
@@ -58,7 +33,7 @@ function countTracks(axisPx: number, cellPx: number, gapPx: number): number {
 export function PhotoWall() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const prevImagesSnapshotRef = useRef<string[] | null>(null);
-  const lastGoodPoolRef = useRef<string[] | null>(null);
+  const lastGoodUploadPoolRef = useRef<string[] | null>(null);
   const heroQueueRef = useRef<string[]>([]);
   const [hero, setHero] = useState<HeroState>(null);
   const wallViewportRef = useRef<HTMLDivElement>(null);
@@ -72,53 +47,23 @@ export function PhotoWall() {
     refreshInterval: WALL_TEXT_POLL_MS,
     revalidateOnFocus: true,
   });
-  const { data: wallComposite } = useSWR<WallCompositeApi>(
-    "/api/wall-composite",
-    fetcherWallComposite,
-    { refreshInterval: COMPOSITE_POLL_MS, revalidateOnFocus: true },
-  );
 
   const wallpaperUrl =
     typeof data?.wallpaperUrl === "string" && data.wallpaperUrl.length > 0 ? data.wallpaperUrl : null;
 
-  const pool = useMemo(() => {
-    if (Array.isArray(data?.images) && data.images.length > 0) {
-      lastGoodPoolRef.current = data.images;
-      return data.images;
+  /** Chỉ ảnh gửi qua API/upload (`/uploads/...`) — không dùng URL mẫu hay ảnh ghép server. */
+  const uploadPool = useMemo(() => {
+    const raw = Array.isArray(data?.images) && data.images.length > 0 ? data.images : [];
+    const uploads = raw.filter((u) => typeof u === "string" && u.startsWith("/uploads/"));
+    if (uploads.length > 0) {
+      lastGoodUploadPoolRef.current = uploads;
+      return uploads;
     }
-    if (lastGoodPoolRef.current && lastGoodPoolRef.current.length > 0) {
-      return lastGoodPoolRef.current;
+    if (lastGoodUploadPoolRef.current && lastGoodUploadPoolRef.current.length > 0) {
+      return lastGoodUploadPoolRef.current;
     }
-    return DEFAULT_IMAGE_URLS;
+    return [];
   }, [data?.images]);
-
-  /** Có ảnh upload local — không hiện ảnh ghép server (job ghép có thể đã tắt, file ghép vẫn cũ). */
-  const hasLocalUploads = useMemo(
-    () => pool.some((u) => typeof u === "string" && u.startsWith("/uploads/")),
-    [pool],
-  );
-
-  const compositeReady = Boolean(wallComposite?.ready && wallComposite.version > 0);
-  const compositeOutOfSync = Boolean(wallComposite?.compositeOutOfSync);
-  const showServerComposite =
-    !wallpaperUrl &&
-    !hasLocalUploads &&
-    compositeReady &&
-    wallComposite != null &&
-    !compositeOutOfSync;
-  const compositeFadeMs = wallCfg?.wallCompositeFadeMs ?? 900;
-
-  const graphicBlendMode = useMemo(() => {
-    return (
-      wallCfg?.graphicBlendMode ??
-      resolveEnvWallGraphicBlendMode() ??
-      WALL_GRAPHIC_DEFAULT_BLEND
-    );
-  }, [wallCfg?.graphicBlendMode]);
-
-  const graphicOverlayOpacity = useMemo(() => {
-    return wallCfg?.graphicOverlayOpacity ?? WALL_GRAPHIC_OVERLAY_OPACITY;
-  }, [wallCfg?.graphicOverlayOpacity]);
 
   const tileW = wallCfg?.gridTileWidthPx ?? STRIP_TILE_W;
   const tileH = wallCfg?.gridTileHeightPx ?? STRIP_TILE_H;
@@ -128,21 +73,19 @@ export function PhotoWall() {
     [viewportSize.h, tileH],
   );
 
-  /** Số ô theo chiều ngang vừa khít viewport — không lặp đôi / không marquee (nhẹ máy yếu). */
   const tilesPerRow = useMemo(
     () => countTracks(viewportSize.w, tileW, STRIP_GAP_PX),
     [viewportSize.w, tileW],
   );
 
   const rowTiles = useMemo(() => {
-    if (rows <= 0 || tilesPerRow <= 0) return [];
-    const safe = pool.length > 0 ? pool : DEFAULT_IMAGE_URLS;
-    const len = safe.length;
+    if (rows <= 0 || tilesPerRow <= 0 || uploadPool.length === 0) return [];
+    const len = uploadPool.length;
     return Array.from({ length: rows }, (_, row) => {
       const offset = row * 17;
-      return Array.from({ length: tilesPerRow }, (_, i) => safe[(offset + i) % len]!);
+      return Array.from({ length: tilesPerRow }, (_, i) => uploadPool[(offset + i) % len]!);
     });
-  }, [rows, tilesPerRow, pool]);
+  }, [rows, tilesPerRow, uploadPool]);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -152,7 +95,7 @@ export function PhotoWall() {
     return () => mq.removeEventListener("change", apply);
   }, []);
 
-  /** Ảnh mới: hàng chờ popup → bay góc trái trên (cùng kích thước ô lưới). */
+  /** Ảnh upload mới: popup giữa màn → thu về góc (chỉ URL `/uploads/`). */
   useEffect(() => {
     const imgs = data?.images;
     if (!imgs?.length) return;
@@ -165,7 +108,7 @@ export function PhotoWall() {
       return;
     }
     const prevSet = new Set(prev);
-    const added = imgs.filter((u) => !prevSet.has(u));
+    const added = imgs.filter((u) => !prevSet.has(u) && u.startsWith("/uploads/"));
     prevImagesSnapshotRef.current = imgs.slice();
     for (const u of added) heroQueueRef.current.push(u);
     if (!added.length) return;
@@ -229,72 +172,61 @@ export function PhotoWall() {
           className="absolute inset-0 z-0 flex min-h-0 min-w-0 flex-col overflow-hidden"
         >
           {wallpaperUrl ? (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={wallpaperUrl}
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover"
-                draggable={false}
-                decoding="async"
-              />
-              <WallGraphicBlend
-                blendMode={graphicBlendMode}
-                overlayOpacity={graphicOverlayOpacity}
-                hideBackdrop
-              />
-            </>
-          ) : showServerComposite ? (
-            <WallCompositeBackground
-              url={wallComposite.url}
-              version={wallComposite.version}
-              fadeMs={compositeFadeMs}
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={wallpaperUrl}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+              draggable={false}
+              decoding="async"
             />
+          ) : uploadPool.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center text-sm text-zinc-500">
+              <p>Chưa có ảnh upload trên tường.</p>
+              <p className="max-w-md text-xs text-zinc-600">
+                Gửi file qua <code className="text-zinc-400">POST /api/upload</code> (multipart{" "}
+                <code className="text-zinc-400">file</code>, kèm token) hoặc đặt nền qua{" "}
+                <code className="text-zinc-400">POST /api/wallpaper</code>.
+              </p>
+            </div>
           ) : (
-            <>
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" style={{ gap: STRIP_GAP_PX }}>
-                {rowTiles.map((tiles, row) => (
-                  <div
-                    key={row}
-                    className="min-h-0 w-full shrink-0 overflow-hidden"
-                    style={{ height: tileH }}
-                  >
-                    <div className="flex h-full w-full min-w-0 flex-nowrap items-stretch" style={{ gap: STRIP_GAP_PX }}>
-                      {tiles.map((src, i) => (
-                        <div
-                          key={`${row}-${i}`}
-                          className="shrink-0 overflow-hidden bg-[#0c1226]"
-                          style={{
-                            width: tileW,
-                            height: tileH,
-                            contentVisibility: "auto",
-                            containIntrinsicSize: `${tileW}px ${tileH}px`,
-                          }}
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={src}
-                            alt=""
-                            width={tileW}
-                            height={tileH}
-                            className="block object-cover"
-                            loading="lazy"
-                            decoding="async"
-                            sizes={`${tileW}px`}
-                            draggable={false}
-                          />
-                        </div>
-                      ))}
-                    </div>
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" style={{ gap: STRIP_GAP_PX }}>
+              {rowTiles.map((tiles, row) => (
+                <div
+                  key={row}
+                  className="min-h-0 w-full shrink-0 overflow-hidden"
+                  style={{ height: tileH }}
+                >
+                  <div className="flex h-full w-full min-w-0 flex-nowrap items-stretch" style={{ gap: STRIP_GAP_PX }}>
+                    {tiles.map((src, i) => (
+                      <div
+                        key={`${row}-${i}`}
+                        className="shrink-0 overflow-hidden bg-[#0c1226]"
+                        style={{
+                          width: tileW,
+                          height: tileH,
+                          contentVisibility: "auto",
+                          containIntrinsicSize: `${tileW}px ${tileH}px`,
+                        }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={src}
+                          alt=""
+                          width={tileW}
+                          height={tileH}
+                          className="block object-cover"
+                          loading="lazy"
+                          decoding="async"
+                          sizes={`${tileW}px`}
+                          draggable={false}
+                        />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <WallGraphicBlend
-                blendMode={graphicBlendMode}
-                overlayOpacity={graphicOverlayOpacity}
-                hideBackdrop={hasLocalUploads}
-              />
-            </>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
