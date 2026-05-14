@@ -39,6 +39,11 @@ const CHU_PNG_PATHS = chuPngSearchPaths();
 const NEN_OPACITY = 0.65;
 /** Lớp chữ căn giữa khung xuất (alpha lớp). */
 const CHU_OPACITY = 0.5;
+/**
+ * Khi mask quá yếu (không CHUMOI): phủ `wall-composite-A.png` lên trên chữ mờ,
+ * alpha cố định (thư mục overlay = `WALL_OVERLAYS_DIR` hoặc `public/wall-overlays`).
+ */
+const OVERLAY_A_FALLBACK_NO_CHUMOI_OPACITY = 0.82;
 
 const FETCH_TIMEOUT_MS = 20_000;
 
@@ -387,6 +392,8 @@ export async function regenerateWallComposite(): Promise<void> {
     const meta = await readWallCompositeMeta();
     const stack: OverlayOptions[] = [];
     let lastStep2: string = "skipped-no-chu";
+    /** Đã phủ overlay A trong nhánh mask yếu — không áp lại ở khối `graphicOverlayOpacity`. */
+    let overlayAFromNoChumoiFallback = false;
 
     const nenBuf = await readOptionalFirstPath(NEN_PNG_PATHS);
     await logWallCompositePublic("step3-nen-load", {
@@ -454,6 +461,31 @@ export async function regenerateWallComposite(): Promise<void> {
       lastStep2 = chuFromSvgFallback ? "fallback-semi-chu-svg" : "fallback-semi-chu";
       const chuLayer = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
       stack.push({ input: chuLayer, left: 0, top: 0 });
+
+      const overlayBufNoChumoi = await readOptionalFile(OVERLAY_A);
+      if (overlayBufNoChumoi) {
+        const blendFallback = cssBlendToSharp(wall.graphicBlendMode) as Blend;
+        let overlayTop = await sharp(overlayBufNoChumoi)
+          .resize(outW, outH, { fit: "cover", position: "centre" })
+          .ensureAlpha()
+          .png()
+          .toBuffer();
+        overlayTop = await applyAlphaScale(overlayTop, OVERLAY_A_FALLBACK_NO_CHUMOI_OPACITY);
+        stack.push({ input: overlayTop, left: 0, top: 0, blend: blendFallback });
+        overlayAFromNoChumoiFallback = true;
+        await logWallCompositePublic("step3-overlay-a-no-chumoi-fallback", {
+          overlayPath: OVERLAY_A,
+          opacity: OVERLAY_A_FALLBACK_NO_CHUMOI_OPACITY,
+          mMax,
+        });
+      } else {
+        await logWallCompositePublic("step3-overlay-a-no-chumoi-fallback-skipped", {
+          reason: "missing-wall-composite-A.png",
+          overlayPath: OVERLAY_A,
+          mMax,
+        });
+      }
+
       await logWallCompositePublic("step2-chumoi-png-skipped", {
         reason: "weak-mask-fallback-semi-chu",
         mMax,
@@ -492,7 +524,7 @@ export async function regenerateWallComposite(): Promise<void> {
 
     const overlayOpacity = Math.min(1, Math.max(0, wall.graphicOverlayOpacity));
     const overlayBlend = cssBlendToSharp(wall.graphicBlendMode) as Blend;
-    if (overlayOpacity > 0.001) {
+    if (overlayOpacity > 0.001 && !overlayAFromNoChumoiFallback) {
       const overlayBuf = await readOptionalFile(OVERLAY_A);
       if (!overlayBuf) {
         console.warn("[wallComposite] không có overlay A — bỏ qua (trước đây sẽ lỗi):", OVERLAY_A);
