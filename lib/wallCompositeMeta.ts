@@ -8,6 +8,11 @@ export type WallCompositeMeta = {
   /** Dự phòng (luân phiên B); hiện luôn dùng overlay A. */
   useOverlayBNext: boolean;
   lastError?: string;
+  /**
+   * Lần ghép gần nhất — STEP 2 (mask chu + CHUMOI):
+   * `chumoi` | `fallback-semi-chu` (mask yếu) | `skipped-no-chu` | `skipped-no-chu-dev-placeholder`.
+   */
+  lastStep2?: string;
 };
 
 const META_PATH = path.join(process.cwd(), "data", "wall-composite-meta.json");
@@ -27,6 +32,7 @@ export async function readWallCompositeMeta(): Promise<WallCompositeMeta> {
       updatedAt: typeof o.updatedAt === "string" ? o.updatedAt : DEFAULT.updatedAt,
       useOverlayBNext: Boolean(o.useOverlayBNext),
       lastError: typeof o.lastError === "string" ? o.lastError : undefined,
+      lastStep2: typeof o.lastStep2 === "string" ? o.lastStep2 : undefined,
     };
   } catch {
     return { ...DEFAULT };

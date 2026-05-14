@@ -15,11 +15,23 @@ import {
 import { readWallText } from "@/lib/wallTextStore";
 import { STRIP_GAP_PX } from "@/lib/wallStripConstants";
 
+const root = process.cwd();
 const OUT_REL = path.join("public", "generated", "wall-composite.jpg");
-const OVERLAY_A = path.join(process.cwd(), "public", "wall-overlays", "wall-composite-A.png");
-const NEN_PNG = path.join(process.cwd(), "public", "wall-overlays", "nen.png");
-const CHU_PNG = path.join(process.cwd(), "public", "wall-overlays", "chu.png");
-const GENERATED_DIR = path.join(process.cwd(), "public", "generated");
+const OVERLAY_A = path.join(root, "public", "wall-overlays", "wall-composite-A.png");
+const GENERATED_DIR = path.join(root, "public", "generated");
+
+/**
+ * Ưu tiên `public/wall-overlays/` (vd. `/opt/image_wall/public/wall-overlays/chu.png`),
+ * không có thì thử `public/` gốc.
+ */
+const NEN_PNG_PATHS = [
+  path.join(root, "public", "wall-overlays", "nen.png"),
+  path.join(root, "public", "nen.png"),
+] as const;
+const CHU_PNG_PATHS = [
+  path.join(root, "public", "wall-overlays", "chu.png"),
+  path.join(root, "public", "chu.png"),
+] as const;
 
 /** Đè nền thiết kế sau lưới ảnh (alpha lớp). */
 const NEN_OPACITY = 0.65;
@@ -77,6 +89,64 @@ async function readOptionalFile(abs: string): Promise<Buffer | null> {
   } catch {
     return null;
   }
+}
+
+async function readOptionalFirstPath(paths: readonly string[]): Promise<Buffer | null> {
+  for (const p of paths) {
+    const b = await readOptionalFile(p);
+    if (b) return b;
+  }
+  return null;
+}
+
+async function anyPathExists(paths: readonly string[]): Promise<boolean> {
+  for (const p of paths) {
+    try {
+      await fs.access(p);
+      return true;
+    } catch {
+      /* thử path tiếp */
+    }
+  }
+  return false;
+}
+
+/**
+ * Dev: nếu thiếu `chu.png`, tạo placeholder (nền sáng + vệt tối) để STEP 2 chạy được.
+ * Production không ghi file. Chỉ tạo dưới `public/wall-overlays/` khi không có file ở mọi vị trí tìm kiếm.
+ */
+async function ensureDevPlaceholderChuPngIfMissing(): Promise<boolean> {
+  if (process.env.NODE_ENV === "production") return false;
+  if (await anyPathExists(CHU_PNG_PATHS)) return false;
+  const target = CHU_PNG_PATHS[0];
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  const W = 960;
+  const H = 420;
+  const barH = 100;
+  const bar = await sharp({
+    create: {
+      width: W,
+      height: barH,
+      channels: 3,
+      background: { r: 28, g: 32, b: 40 },
+    },
+  })
+    .png()
+    .toBuffer();
+  const png = await sharp({
+    create: {
+      width: W,
+      height: H,
+      channels: 3,
+      background: { r: 248, g: 248, b: 250 },
+    },
+  })
+    .composite([{ input: bar, left: 0, top: Math.floor((H - barH) / 2) }])
+    .png()
+    .toBuffer();
+  await fs.writeFile(target, png);
+  console.info("[wallComposite] STEP2: đã tạo chu.png placeholder (dev):", target);
+  return true;
 }
 
 function shuffleInPlace<T>(arr: T[]): void {
@@ -179,6 +249,7 @@ export async function regenerateWallComposite(): Promise<void> {
 
   try {
     const wall = await readWallText();
+    const devChuBootstrap = await ensureDevPlaceholderChuPngIfMissing();
     const { images } = await readImages();
     const pool = images.length > 0 ? images : [];
     if (pool.length === 0) {
@@ -269,8 +340,9 @@ export async function regenerateWallComposite(): Promise<void> {
 
     const meta = await readWallCompositeMeta();
     const stack: OverlayOptions[] = [];
+    let lastStep2: string = "skipped-no-chu";
 
-    const nenBuf = await readOptionalFile(NEN_PNG);
+    const nenBuf = await readOptionalFirstPath(NEN_PNG_PATHS);
     if (nenBuf) {
       let nenLayer = await sharp(nenBuf)
         .resize(outW, outH, { fit: "cover", position: "centre" })
@@ -280,10 +352,10 @@ export async function regenerateWallComposite(): Promise<void> {
       nenLayer = await applyAlphaScale(nenLayer, NEN_OPACITY);
       stack.push({ input: nenLayer, left: 0, top: 0 });
     } else {
-      console.warn("[wallComposite] không có nen.png — bỏ qua lớp nền:", NEN_PNG);
+      console.warn("[wallComposite] không có nen.png — đã thử:", NEN_PNG_PATHS.join(" | "));
     }
 
-    const chuBuf = await readOptionalFile(CHU_PNG);
+    const chuBuf = await readOptionalFirstPath(CHU_PNG_PATHS);
     if (chuBuf) {
       /**
        * STEP 2: mask từ chu (alpha × độ lệch màu viền khi không có alpha).
@@ -292,11 +364,15 @@ export async function regenerateWallComposite(): Promise<void> {
        */
       const chuCanvasRaw = await buildChuRgbaCanvasRaw(chuBuf, outW, outH);
       const mask = buildLetterMaskFromChuRgba(Buffer.from(chuCanvasRaw), outW, outH);
-      if (maskMaxValue(mask) < 12) {
-        console.warn("[wallComposite] mask chữ quá yếu — dùng lớp chữ mờ phủ cả khung");
+      const mMax = maskMaxValue(mask);
+      if (mMax < 12) {
+        console.warn("[wallComposite] STEP2: mask chữ quá yếu (max=", mMax, ") — lớp chữ mờ phủ cả khung");
+        lastStep2 = "fallback-semi-chu";
         const chuLayer = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
         stack.push({ input: chuLayer, left: 0, top: 0 });
       } else {
+        lastStep2 = devChuBootstrap ? "chumoi-dev-placeholder-chu" : "chumoi";
+        console.info("[wallComposite] STEP2:", lastStep2, "maskMax=", mMax);
         const chumoiRaw = applyLetterMaskToGridRgba(Buffer.from(gridRaw), mask, outW, outH);
         const chuForTone = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
         const chumoiPng = await sharp(chumoiRaw, {
@@ -308,29 +384,24 @@ export async function regenerateWallComposite(): Promise<void> {
         stack.push({ input: chumoiPng, left: 0, top: 0 });
       }
     } else {
-      console.warn("[wallComposite] không có chu.png — bỏ qua lớp chữ:", CHU_PNG);
+      console.warn("[wallComposite] STEP2 skipped — không có chu.png — đã thử:", CHU_PNG_PATHS.join(" | "));
     }
 
     const overlayOpacity = Math.min(1, Math.max(0, wall.graphicOverlayOpacity));
     const overlayBlend = cssBlendToSharp(wall.graphicBlendMode) as Blend;
     if (overlayOpacity > 0.001) {
-      let overlayBuf: Buffer;
-      try {
-        overlayBuf = await fs.readFile(OVERLAY_A);
-      } catch (e2) {
-        await writeWallCompositeMeta({
-          ...meta,
-          lastError: `Thiếu file overlay A: ${OVERLAY_A}`,
-        });
-        throw e2;
+      const overlayBuf = await readOptionalFile(OVERLAY_A);
+      if (!overlayBuf) {
+        console.warn("[wallComposite] không có overlay A — bỏ qua (trước đây sẽ lỗi):", OVERLAY_A);
+      } else {
+        let overlay = await sharp(overlayBuf)
+          .resize(outW, outH, { fit: "cover", position: "centre" })
+          .ensureAlpha()
+          .png()
+          .toBuffer();
+        overlay = await applyAlphaScale(overlay, overlayOpacity);
+        stack.push({ input: overlay, left: 0, top: 0, blend: overlayBlend });
       }
-      let overlay = await sharp(overlayBuf)
-        .resize(outW, outH, { fit: "cover", position: "centre" })
-        .ensureAlpha()
-        .png()
-        .toBuffer();
-      overlay = await applyAlphaScale(overlay, overlayOpacity);
-      stack.push({ input: overlay, left: 0, top: 0, blend: overlayBlend });
     }
 
     const merged =
@@ -362,6 +433,7 @@ export async function regenerateWallComposite(): Promise<void> {
       updatedAt: new Date().toISOString(),
       useOverlayBNext: false,
       lastError: undefined,
+      lastStep2,
     });
   } catch (err) {
     console.error("[wallComposite]", err);

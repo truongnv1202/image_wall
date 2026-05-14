@@ -40,6 +40,7 @@ export async function GET() {
       updatedAt: meta.updatedAt,
       ready,
       lastError: meta.lastError ?? null,
+      lastStep2: meta.lastStep2 ?? null,
       compositeOutOfSync,
     },
     {

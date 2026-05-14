@@ -7,9 +7,10 @@ let started = false;
 export function startWallCompositeScheduler(): void {
   if (started || typeof setTimeout === "undefined") return;
   started = true;
+  console.info("[wallCompositeScheduler] đã bật — chu kỳ theo compositeIntervalMs (STEP1–3)");
 
   const loop = async () => {
-    let delayMs = 60_000;
+    let delayMs = 120_000;
     try {
       const { readWallText } = await import("@/lib/wallTextStore");
       const wall = await readWallText();

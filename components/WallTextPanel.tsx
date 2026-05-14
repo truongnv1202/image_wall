@@ -12,6 +12,21 @@ const fetcher = (url: string) =>
     return r.json() as Promise<WallTextPayload>;
   });
 
+type WallCompositeApi = {
+  version: number;
+  updatedAt: string;
+  ready: boolean;
+  lastError: string | null;
+  lastStep2: string | null;
+  compositeOutOfSync: boolean;
+};
+
+const fetcherComposite = (url: string) =>
+  fetch(url).then((r) => {
+    if (!r.ok) throw new Error("fetch failed");
+    return r.json() as Promise<WallCompositeApi>;
+  });
+
 const MAX_PHRASES = 24;
 const MAX_LEN = 400;
 
@@ -19,6 +34,9 @@ type Props = { apiUploadToken: string };
 
 export function WallTextPanel({ apiUploadToken }: Props) {
   const { data, error, isLoading, mutate } = useSWR<WallTextPayload>("/api/wall-text", fetcher);
+  const { data: compApi } = useSWR<WallCompositeApi>("/api/wall-composite", fetcherComposite, {
+    refreshInterval: 5000,
+  });
   const [phrases, setPhrases] = useState<string[]>([]);
   const [rotateSec, setRotateSec] = useState(60);
   const [crossfadeMs, setCrossfadeMs] = useState(800);
@@ -26,7 +44,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
   const [gridRows, setGridRows] = useState(60);
   const [gridTileWidthPx, setGridTileWidthPx] = useState(54);
   const [gridTileHeightPx, setGridTileHeightPx] = useState(72);
-  const [compositeIntervalSec, setCompositeIntervalSec] = useState(60);
+  const [compositeIntervalSec, setCompositeIntervalSec] = useState(120);
   const [compositeOutWidth, setCompositeOutWidth] = useState(1920);
   const [compositeOutHeight, setCompositeOutHeight] = useState(1080);
   const [wallCompositeFadeMs, setWallCompositeFadeMs] = useState(900);
@@ -42,7 +60,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
     setGridRows(data.gridRows ?? 60);
     setGridTileWidthPx(data.gridTileWidthPx ?? 54);
     setGridTileHeightPx(data.gridTileHeightPx ?? 72);
-    setCompositeIntervalSec(Math.max(60, Math.round((data.compositeIntervalMs ?? 60_000) / 1000)));
+    setCompositeIntervalSec(Math.max(60, Math.round((data.compositeIntervalMs ?? 120_000) / 1000)));
     setCompositeOutWidth(data.compositeOutWidth ?? 1920);
     setCompositeOutHeight(data.compositeOutHeight ?? 1080);
     setWallCompositeFadeMs(data.wallCompositeFadeMs ?? 900);
@@ -68,7 +86,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       const graphicOverlayOpacity = data?.graphicOverlayOpacity ?? WALL_GRAPHIC_OVERLAY_OPACITY;
       const nextCompositeIntervalMs = Math.min(
         3_600_000,
-        Math.max(60_000, Math.round(Number(compositeIntervalSec) * 1000) || 60_000),
+        Math.max(60_000, Math.round(Number(compositeIntervalSec) * 1000) || 120_000),
       );
       const nextOutW = Math.min(3840, Math.max(640, Math.floor(Number(compositeOutWidth)) || 1920));
       const nextOutH = Math.min(2160, Math.max(360, Math.floor(Number(compositeOutHeight)) || 1080));
@@ -188,12 +206,20 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         Ảnh tường ghép (server, ~16:9)
       </div>
       <p className="text-xs text-zinc-500">
-        Server ghép <strong>lưới ảnh</strong> (tỷ lệ ~16:9, kích thước pixel bên dưới), thiếu ảnh thì <strong>lặp lại</strong> theo thứ tự. Sau đó đè{" "}
-        <code className="text-zinc-400">public/wall-overlays/nen.png</code> (opacity 65%), rồi{" "}
-        <code className="text-zinc-400">chu.png</code> căn giữa (50%). Cuối cùng vẫn đè <strong>ảnh A</strong> với blend và độ mờ đã chỉnh ở panel watermark. Mỗi lần tạo xong chỉ giữ một file{" "}
-        <code className="text-zinc-400">wall-composite.jpg</code> (ảnh cũ bị thay). Tải qua{" "}
-        <code className="text-zinc-400">/api/wall-composite/image</code>.
+        Server ghép <strong>lưới ảnh</strong> (STEP 1), mask theo <code className="text-zinc-400">chu.png</code> (ưu tiên{" "}
+        <code className="text-zinc-400">public/wall-overlays/chu.png</code>, không có thì{" "}
+        <code className="text-zinc-400">public/chu.png</code>) + lưới trong chữ (STEP 2 — CHUMOI), rồi{" "}
+        <code className="text-zinc-400">nen.png</code> cùng thứ tự thư mục và overlay A nếu có.{" "}
+        <code className="text-zinc-400">wall-composite-A.png</code> thiếu thì bỏ qua overlay. Mỗi lần xong chỉ giữ{" "}
+        <code className="text-zinc-400">wall-composite.jpg</code> — <code className="text-zinc-400">/api/wall-composite/image</code>.
       </p>
+      {compApi ? (
+        <p className="text-xs text-emerald-600/90 dark:text-emerald-400/90">
+          Ghép server: {compApi.ready ? `bản v${compApi.version}` : "chưa có file"}{" "}
+          {compApi.lastStep2 != null && compApi.lastStep2.length > 0 ? `— STEP2: ${compApi.lastStep2}` : ""}
+          {compApi.lastError ? ` — lỗi: ${compApi.lastError}` : ""}
+        </p>
+      ) : null}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs text-zinc-400">
           <span>Chu kỳ tạo lại ảnh ghép (giây, 60–3600)</span>
@@ -202,7 +228,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
             min={60}
             max={3600}
             step={1}
-            value={Number.isFinite(compositeIntervalSec) ? compositeIntervalSec : 60}
+            value={Number.isFinite(compositeIntervalSec) ? compositeIntervalSec : 120}
             onChange={(e) => setCompositeIntervalSec(Number(e.target.value))}
             className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
           />

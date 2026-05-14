@@ -28,7 +28,7 @@ export type WallTextPayload = {
   graphicBlendMode: WallGraphicBlendMode;
   /** Độ mờ overlay / watermark ảnh (0 = trong suốt, 1 = đục hoàn toàn). */
   graphicOverlayOpacity: number;
-  /** Chu kỳ ghép lại ảnh tường server-side (ms), mặc định 60s. */
+  /** Chu kỳ ghép lại ảnh tường + xáo ô lưới server-side (ms), mặc định 2 phút. */
   compositeIntervalMs: number;
   /** Kích thước ảnh ghép xuất ra (pixel), ~16:9. */
   compositeOutWidth: number;
@@ -53,7 +53,8 @@ const DEFAULT: WallTextPayload = {
   gridTileHeightPx: 72,
   graphicBlendMode: WALL_GRAPHIC_DEFAULT_BLEND,
   graphicOverlayOpacity: WALL_GRAPHIC_OVERLAY_OPACITY,
-  compositeIntervalMs: 60_000,
+  /** Chu kỳ ghép lại ảnh tường + xáo vị trí ô lưới (ms), mặc định 2 phút. */
+  compositeIntervalMs: 120_000,
   compositeOutWidth: 1920,
   compositeOutHeight: 1080,
   wallCompositeFadeMs: 900,
