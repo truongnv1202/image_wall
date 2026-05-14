@@ -1,7 +1,7 @@
 /** Ảnh overlay trên tường (một file trong `public/wall-overlays/`). */
 export const WALL_GRAPHIC_URL = "/wall-overlays/giu-lay-binh-yen.png";
 
-/** Độ mờ mặc định lớp overlay / watermark ảnh (0–1); có thể chỉnh trên trang upload. */
+/** Giữ trong JSON (tương thích); không dùng khi ghép overlay A. */
 export const WALL_GRAPHIC_OVERLAY_OPACITY = 0.9;
 
 /** Chuẩn hoá opacity từ JSON / form. */

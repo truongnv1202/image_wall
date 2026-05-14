@@ -14,12 +14,25 @@ type UploadJson = {
   images?: string[];
 };
 
+type OverlayUploadJson = {
+  error?: string;
+  ok?: boolean;
+  width?: number;
+  height?: number;
+  file?: string;
+};
+
 export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
-  const inputId = useId();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const tileInputId = useId();
+  const overlayInputId = useId();
+  const tileInputRef = useRef<HTMLInputElement>(null);
+  const overlayInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [overlayFileName, setOverlayFileName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [overlayBusy, setOverlayBusy] = useState(false);
   const [hint, setHint] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [overlayHint, setOverlayHint] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   async function submit() {
     const token = apiUploadToken?.trim();
@@ -27,7 +40,7 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
       setHint({ kind: "err", text: "Thiếu token — chỉ dùng trang /upload/<token>." });
       return;
     }
-    const file = inputRef.current?.files?.[0];
+    const file = tileInputRef.current?.files?.[0];
     if (!file) {
       setHint({ kind: "err", text: "Chọn một file ảnh (JPG/PNG/WebP/GIF)." });
       return;
@@ -63,12 +76,58 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
               ? `Đã upload ${url}.`
               : "Upload thành công.",
       });
-      if (inputRef.current) inputRef.current.value = "";
+      if (tileInputRef.current) tileInputRef.current.value = "";
       setFileName(null);
     } catch (e) {
       setHint({ kind: "err", text: e instanceof Error ? e.message : "Lỗi mạng" });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function submitOverlay() {
+    const token = apiUploadToken?.trim();
+    if (!token) {
+      setOverlayHint({ kind: "err", text: "Thiếu token — chỉ dùng trang /upload/<token>." });
+      return;
+    }
+    const file = overlayInputRef.current?.files?.[0];
+    if (!file) {
+      setOverlayHint({ kind: "err", text: "Chọn file lớp phủ (PNG/JPG/WebP/GIF)." });
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("token", token);
+
+    setOverlayBusy(true);
+    setOverlayHint(null);
+    try {
+      const res = await fetch("/api/upload-wall-overlay", { method: "POST", body: fd });
+      let data: OverlayUploadJson;
+      try {
+        data = (await res.json()) as OverlayUploadJson;
+      } catch {
+        setOverlayHint({ kind: "err", text: `HTTP ${res.status} — phản hồi không phải JSON.` });
+        return;
+      }
+      if (!res.ok) {
+        setOverlayHint({ kind: "err", text: data.error || `HTTP ${res.status}` });
+        return;
+      }
+      const w = data.width ?? "?";
+      const h = data.height ?? "?";
+      setOverlayHint({
+        kind: "ok",
+        text: `Đã ghi wall-composite-A.png (${w}×${h}px, giữ nguyên kích thước pixel). Độ mờ/blend vẫn theo wall-text — không đổi qua bước này.`,
+      });
+      if (overlayInputRef.current) overlayInputRef.current.value = "";
+      setOverlayFileName(null);
+    } catch (e) {
+      setOverlayHint({ kind: "err", text: e instanceof Error ? e.message : "Lỗi mạng" });
+    } finally {
+      setOverlayBusy(false);
     }
   }
 
@@ -83,22 +142,72 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
       </p>
 
       <div className="flex flex-col gap-2 border-t border-zinc-800 pt-3">
-        <span className="text-xs font-medium text-zinc-400">Test API ngay trên trang</span>
+        <span className="text-xs font-medium text-zinc-400">Lớp phủ ghép tường (`wall-composite-A.png`)</span>
+        <p className="text-xs text-zinc-600">
+          <code className="text-zinc-500">POST /api/upload-wall-overlay</code> — ghi vào thư mục overlay (ví dụ{" "}
+          <code className="text-zinc-500">WALL_OVERLAYS_DIR</code> / <code className="text-zinc-500">public/wall-overlays</code>
+          ). File được lưu <strong className="text-zinc-400">cùng width×height</strong> (không resize).{" "}
+          <strong className="text-zinc-400">Không</strong> sửa kích thước khung ghép trong{" "}
+          <code className="text-zinc-500">wall-text.json</code>. Độ mờ lớp phủ chỉ do <strong>alpha ảnh upload</strong> — không chỉnh qua cấu hình.
+        </p>
         <div className="flex flex-wrap items-center gap-2">
           <input
-            ref={inputRef}
-            id={inputId}
+            ref={overlayInputRef}
+            id={overlayInputId}
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
             className="sr-only"
             onChange={() => {
-              const f = inputRef.current?.files?.[0];
+              const f = overlayInputRef.current?.files?.[0];
+              setOverlayFileName(f ? f.name : null);
+              setOverlayHint(null);
+            }}
+          />
+          <label
+            htmlFor={overlayInputId}
+            className="cursor-pointer rounded-lg border border-dashed border-amber-800/60 px-3 py-2 text-xs text-amber-100/90 hover:bg-zinc-800"
+          >
+            {overlayFileName ? `Lớp phủ: ${overlayFileName}` : "Chọn file lớp phủ…"}
+          </label>
+          <button
+            type="button"
+            disabled={overlayBusy}
+            className="rounded-lg border border-amber-700/80 bg-amber-950/50 px-4 py-2 text-xs font-medium text-amber-100 hover:bg-amber-900/40 disabled:opacity-50"
+            onClick={() => void submitOverlay()}
+          >
+            {overlayBusy ? "Đang gửi…" : "Upload lớp phủ"}
+          </button>
+        </div>
+        {overlayHint ? (
+          <p
+            className={
+              overlayHint.kind === "ok"
+                ? "text-xs text-emerald-400/95"
+                : "text-xs text-rose-400/95"
+            }
+          >
+            {overlayHint.text}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-2 border-t border-zinc-800 pt-3">
+        <span className="text-xs font-medium text-zinc-400">Test API ô lưới</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={tileInputRef}
+            id={tileInputId}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+            className="sr-only"
+            onChange={() => {
+              const f = tileInputRef.current?.files?.[0];
               setFileName(f ? f.name : null);
               setHint(null);
             }}
           />
           <label
-            htmlFor={inputId}
+            htmlFor={tileInputId}
             className="cursor-pointer rounded-lg border border-dashed border-zinc-600 px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800"
           >
             {fileName ? `Đã chọn: ${fileName}` : "Chọn ảnh…"}

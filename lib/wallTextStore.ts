@@ -24,9 +24,11 @@ export type WallTextPayload = {
   /** Kích thước mỗi ô lưới trên tường (px) — mặc định 54×72 (3:4); tối thiểu 6×8. */
   gridTileWidthPx: number;
   gridTileHeightPx: number;
-  /** `mix-blend-mode` cho lớp ảnh overlay giữa tường. */
+  /** `mix-blend-mode` cho lớp `wall-composite-A.png` (Sharp). */
   graphicBlendMode: WallGraphicBlendMode;
-  /** Độ mờ overlay / watermark ảnh (0 = trong suốt, 1 = đục hoàn toàn). */
+  /**
+   * Lưu trong JSON để tương thích cũ; **không** dùng khi ghép overlay A — độ trong suốt lấy từ kênh alpha của file upload.
+   */
   graphicOverlayOpacity: number;
   /** Chu kỳ ghép lại ảnh tường + xáo ô lưới server-side (ms), mặc định 2 phút. */
   compositeIntervalMs: number;

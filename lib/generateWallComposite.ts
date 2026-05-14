@@ -39,13 +39,18 @@ const CHU_PNG_PATHS = chuPngSearchPaths();
 const NEN_OPACITY = 0.65;
 /** Lớp chữ căn giữa khung xuất (alpha lớp). */
 const CHU_OPACITY = 0.5;
-/**
- * Khi mask quá yếu (không CHUMOI): phủ `wall-composite-A.png` lên trên chữ mờ,
- * alpha cố định (thư mục overlay = `WALL_OVERLAYS_DIR` hoặc `public/wall-overlays`).
- */
-const OVERLAY_A_FALLBACK_NO_CHUMOI_OPACITY = 0.82;
 
 const FETCH_TIMEOUT_MS = 20_000;
+
+/**
+ * Tạm thời: bỏ STEP2 (chu / mask / CHUMOI), chỉ lưới + nen + `wall-composite-A.png` (blend từ wall-text; alpha chỉ từ file).
+ * Bật lại pipeline chữ: `WALL_COMPOSITE_SKIP_STEP2=0` hoặc `false` hoặc `off`.
+ */
+function wallCompositeSkipStep2Letter(): boolean {
+  const v = process.env.WALL_COMPOSITE_SKIP_STEP2?.trim().toLowerCase();
+  if (v === "0" || v === "false" || v === "off") return false;
+  return true;
+}
 
 let genLock: Promise<void> = Promise.resolve();
 
@@ -262,13 +267,17 @@ export async function regenerateWallComposite(): Promise<void> {
 
   try {
     const wall = await readWallText();
-    const devChuBootstrap = await ensureDevPlaceholderChuPngIfMissing();
+    let devChuBootstrap = false;
+    if (!wallCompositeSkipStep2Letter()) {
+      devChuBootstrap = await ensureDevPlaceholderChuPngIfMissing();
+    }
     const { images } = await readImages();
     const pool = images.length > 0 ? images : [];
     await logWallCompositePublic("after-read-config", {
       overlaysBase,
       poolSize: pool.length,
       devChuBootstrap,
+      skipStep2Letter: wallCompositeSkipStep2Letter(),
       gridCols: wall.gridCols,
       gridRows: wall.gridRows,
       outW: wall.compositeOutWidth,
@@ -392,7 +401,7 @@ export async function regenerateWallComposite(): Promise<void> {
     const meta = await readWallCompositeMeta();
     const stack: OverlayOptions[] = [];
     let lastStep2: string = "skipped-no-chu";
-    /** Đã phủ overlay A trong nhánh mask yếu — không áp lại ở khối `graphicOverlayOpacity`. */
+    /** Đã phủ overlay A trong nhánh mask yếu — không áp lại ở khối overlay cuối. */
     let overlayAFromNoChumoiFallback = false;
 
     const nenBuf = await readOptionalFirstPath(NEN_PNG_PATHS);
@@ -425,119 +434,148 @@ export async function regenerateWallComposite(): Promise<void> {
       });
     }
 
-    let chuBuf = await readOptionalFirstPath(CHU_PNG_PATHS);
-    let chuFromSvgFallback = false;
-    await logWallCompositePublic("step2-chu-file-attempt", {
-      chuPaths: CHU_PNG_PATHS.join(" | "),
-      chuFoundBytes: chuBuf ? chuBuf.length : 0,
-    });
-    if (!chuBuf) {
-      const phrase = wall.phrases.length > 0 ? wall.phrases[0]! : "HÒA BÌNH";
-      chuBuf = await rasterSvgChuPlaceholder(phrase, outW, outH);
-      chuFromSvgFallback = true;
-      console.warn(
-        "[wallComposite] STEP2: không có chu.png — dùng chữ SVG từ wall-text, đã thử:",
-        CHU_PNG_PATHS.join(" | "),
-      );
-      await logWallCompositePublic("step2-chu-using-svg-fallback", { phraseLen: phrase.length });
-    }
-
-    await logWallCompositePublic("step2-chu-buffer-ready", {
-      chuFromSvgFallback,
-      chuBytes: chuBuf.length,
-    });
-
-    /**
-     * STEP 2: mask từ chu (alpha × độ lệch màu viền khi không có alpha).
-     * chu → mask × GRID → nhân chữ (multiply) → CHUMOI (+ lớp chữ mờ phía trên để luôn thấy nét chữ).
-     * STEP 3: CHUMOI trên nen, nền dưới là lưới full (gridBasePng).
-     */
-    const chuCanvasRaw = await buildChuRgbaCanvasRaw(chuBuf, outW, outH);
-    const mask = buildLetterMaskFromChuRgba(Buffer.from(chuCanvasRaw), outW, outH);
-    const mMax = maskMaxValue(mask);
-    await logWallCompositePublic("step2-mask-built", { mMax, outW, outH });
-    if (mMax < 5) {
-      console.warn("[wallComposite] STEP2: mask quá yếu (max=", mMax, ") — lớp chữ mờ phủ cả khung");
-      lastStep2 = chuFromSvgFallback ? "fallback-semi-chu-svg" : "fallback-semi-chu";
-      const chuLayer = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
-      stack.push({ input: chuLayer, left: 0, top: 0 });
-
-      const overlayBufNoChumoi = await readOptionalFile(OVERLAY_A);
-      if (overlayBufNoChumoi) {
-        const blendFallback = cssBlendToSharp(wall.graphicBlendMode) as Blend;
-        let overlayTop = await sharp(overlayBufNoChumoi)
+    if (wallCompositeSkipStep2Letter()) {
+      lastStep2 = "skipped-step2-letter-temp";
+      await logWallCompositePublic("step2-skipped-temp", {
+        blendMode: wall.graphicBlendMode,
+        overlayAlphaFromFileOnly: true,
+        overlayPath: OVERLAY_A,
+      });
+      const overlayBlendSkip = cssBlendToSharp(wall.graphicBlendMode) as Blend;
+      const overlayBufSkip = await readOptionalFile(OVERLAY_A);
+      if (!overlayBufSkip) {
+        console.warn("[wallComposite] chế độ tạm (bỏ chữ): thiếu wall-composite-A.png —", OVERLAY_A);
+        await logWallCompositePublic("step3-overlay-temp-skipped", {
+          reason: "missing-wall-composite-A.png",
+          overlayPath: OVERLAY_A,
+        });
+      } else {
+        const overlaySkip = await sharp(overlayBufSkip)
           .resize(outW, outH, { fit: "cover", position: "centre" })
           .ensureAlpha()
           .png()
           .toBuffer();
-        overlayTop = await applyAlphaScale(overlayTop, OVERLAY_A_FALLBACK_NO_CHUMOI_OPACITY);
-        stack.push({ input: overlayTop, left: 0, top: 0, blend: blendFallback });
-        overlayAFromNoChumoiFallback = true;
-        await logWallCompositePublic("step3-overlay-a-no-chumoi-fallback", {
-          overlayPath: OVERLAY_A,
-          opacity: OVERLAY_A_FALLBACK_NO_CHUMOI_OPACITY,
-          mMax,
+        stack.push({ input: overlaySkip, left: 0, top: 0, blend: overlayBlendSkip });
+        await logWallCompositePublic("step3-overlay-applied-temp-skip-step2", {
+          overlayBytes: overlaySkip.length,
+          blend: wall.graphicBlendMode,
         });
-      } else {
-        await logWallCompositePublic("step3-overlay-a-no-chumoi-fallback-skipped", {
-          reason: "missing-wall-composite-A.png",
-          overlayPath: OVERLAY_A,
-          mMax,
-        });
+      }
+    } else {
+      let chuBuf = await readOptionalFirstPath(CHU_PNG_PATHS);
+      let chuFromSvgFallback = false;
+      await logWallCompositePublic("step2-chu-file-attempt", {
+        chuPaths: CHU_PNG_PATHS.join(" | "),
+        chuFoundBytes: chuBuf ? chuBuf.length : 0,
+      });
+      if (!chuBuf) {
+        const phrase = wall.phrases.length > 0 ? wall.phrases[0]! : "HÒA BÌNH";
+        chuBuf = await rasterSvgChuPlaceholder(phrase, outW, outH);
+        chuFromSvgFallback = true;
+        console.warn(
+          "[wallComposite] STEP2: không có chu.png — dùng chữ SVG từ wall-text, đã thử:",
+          CHU_PNG_PATHS.join(" | "),
+        );
+        await logWallCompositePublic("step2-chu-using-svg-fallback", { phraseLen: phrase.length });
       }
 
-      await logWallCompositePublic("step2-chumoi-png-skipped", {
-        reason: "weak-mask-fallback-semi-chu",
-        mMax,
+      await logWallCompositePublic("step2-chu-buffer-ready", {
+        chuFromSvgFallback,
+        chuBytes: chuBuf.length,
       });
-      await logWallCompositePublic("step2-branch-fallback-semi-chu", { lastStep2, stackLen: stack.length });
-    } else {
-      if (chuFromSvgFallback) {
-        lastStep2 = "chumoi-svg-phrase";
-      } else if (devChuBootstrap) {
-        lastStep2 = "chumoi-dev-placeholder-chu";
+
+      /**
+       * STEP 2: mask từ chu (alpha × độ lệch màu viền khi không có alpha).
+       * chu → mask × GRID → nhân chữ (multiply) → CHUMOI (+ lớp chữ mờ phía trên để luôn thấy nét chữ).
+       * STEP 3: CHUMOI trên nen, nền dưới là lưới full (gridBasePng).
+       */
+      const chuCanvasRaw = await buildChuRgbaCanvasRaw(chuBuf, outW, outH);
+      const mask = buildLetterMaskFromChuRgba(Buffer.from(chuCanvasRaw), outW, outH);
+      const mMax = maskMaxValue(mask);
+      await logWallCompositePublic("step2-mask-built", { mMax, outW, outH });
+      if (mMax < 5) {
+        console.warn("[wallComposite] STEP2: mask quá yếu (max=", mMax, ") — lớp chữ mờ phủ cả khung");
+        lastStep2 = chuFromSvgFallback ? "fallback-semi-chu-svg" : "fallback-semi-chu";
+        const chuLayer = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
+        stack.push({ input: chuLayer, left: 0, top: 0 });
+
+        const overlayBufNoChumoi = await readOptionalFile(OVERLAY_A);
+        if (overlayBufNoChumoi) {
+          const blendFallback = cssBlendToSharp(wall.graphicBlendMode) as Blend;
+          const overlayTop = await sharp(overlayBufNoChumoi)
+            .resize(outW, outH, { fit: "cover", position: "centre" })
+            .ensureAlpha()
+            .png()
+            .toBuffer();
+          stack.push({ input: overlayTop, left: 0, top: 0, blend: blendFallback });
+          overlayAFromNoChumoiFallback = true;
+          await logWallCompositePublic("step3-overlay-a-no-chumoi-fallback", {
+            overlayPath: OVERLAY_A,
+            overlayAlphaFromFileOnly: true,
+            mMax,
+          });
+        } else {
+          await logWallCompositePublic("step3-overlay-a-no-chumoi-fallback-skipped", {
+            reason: "missing-wall-composite-A.png",
+            overlayPath: OVERLAY_A,
+            mMax,
+          });
+        }
+
+        await logWallCompositePublic("step2-chumoi-png-skipped", {
+          reason: "weak-mask-fallback-semi-chu",
+          mMax,
+        });
+        await logWallCompositePublic("step2-branch-fallback-semi-chu", { lastStep2, stackLen: stack.length });
       } else {
-        lastStep2 = "chumoi";
+        if (chuFromSvgFallback) {
+          lastStep2 = "chumoi-svg-phrase";
+        } else if (devChuBootstrap) {
+          lastStep2 = "chumoi-dev-placeholder-chu";
+        } else {
+          lastStep2 = "chumoi";
+        }
+        console.info("[wallComposite] STEP2:", lastStep2, "maskMax=", mMax);
+        const chumoiRaw = applyLetterMaskToGridRgba(Buffer.from(gridRaw), mask, outW, outH);
+        const chuForTone = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
+        const chumoiPng = await sharp(chumoiRaw, {
+          raw: { width: outW, height: outH, channels: 4 },
+        })
+          .composite([{ input: chuForTone, blend: "multiply", left: 0, top: 0 }])
+          .png()
+          .toBuffer();
+        const chumoiAbs = path.join(root, CHUMOI_OUT_REL);
+        await fs.mkdir(path.dirname(chumoiAbs), { recursive: true });
+        await fs.writeFile(chumoiAbs, chumoiPng);
+        await logWallCompositePublic("step2-chumoi-png-written", {
+          path: CHUMOI_OUT_REL.replace(/\\/g, "/"),
+          bytes: chumoiPng.length,
+          lastStep2,
+        });
+        stack.push({ input: chumoiPng, left: 0, top: 0 });
+        const chuOnTop = await buildChuLayerCentered(chuBuf, outW, outH, 0.34);
+        stack.push({ input: chuOnTop, left: 0, top: 0 });
+        await logWallCompositePublic("step2-branch-chumoi-done", { lastStep2, stackLen: stack.length });
       }
-      console.info("[wallComposite] STEP2:", lastStep2, "maskMax=", mMax);
-      const chumoiRaw = applyLetterMaskToGridRgba(Buffer.from(gridRaw), mask, outW, outH);
-      const chuForTone = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
-      const chumoiPng = await sharp(chumoiRaw, {
-        raw: { width: outW, height: outH, channels: 4 },
-      })
-        .composite([{ input: chuForTone, blend: "multiply", left: 0, top: 0 }])
-        .png()
-        .toBuffer();
-      const chumoiAbs = path.join(root, CHUMOI_OUT_REL);
-      await fs.mkdir(path.dirname(chumoiAbs), { recursive: true });
-      await fs.writeFile(chumoiAbs, chumoiPng);
-      await logWallCompositePublic("step2-chumoi-png-written", {
-        path: CHUMOI_OUT_REL.replace(/\\/g, "/"),
-        bytes: chumoiPng.length,
-        lastStep2,
-      });
-      stack.push({ input: chumoiPng, left: 0, top: 0 });
-      const chuOnTop = await buildChuLayerCentered(chuBuf, outW, outH, 0.34);
-      stack.push({ input: chuOnTop, left: 0, top: 0 });
-      await logWallCompositePublic("step2-branch-chumoi-done", { lastStep2, stackLen: stack.length });
     }
 
-    const overlayOpacity = Math.min(1, Math.max(0, wall.graphicOverlayOpacity));
     const overlayBlend = cssBlendToSharp(wall.graphicBlendMode) as Blend;
-    if (overlayOpacity > 0.001 && !overlayAFromNoChumoiFallback) {
+    if (!wallCompositeSkipStep2Letter() && !overlayAFromNoChumoiFallback) {
       const overlayBuf = await readOptionalFile(OVERLAY_A);
       if (!overlayBuf) {
         console.warn("[wallComposite] không có overlay A — bỏ qua (trước đây sẽ lỗi):", OVERLAY_A);
         await logWallCompositePublic("step3-overlay-skipped", { overlayPath: OVERLAY_A });
       } else {
-        let overlay = await sharp(overlayBuf)
+        const overlay = await sharp(overlayBuf)
           .resize(outW, outH, { fit: "cover", position: "centre" })
           .ensureAlpha()
           .png()
           .toBuffer();
-        overlay = await applyAlphaScale(overlay, overlayOpacity);
         stack.push({ input: overlay, left: 0, top: 0, blend: overlayBlend });
-        await logWallCompositePublic("step3-overlay-applied", { overlayBytes: overlay.length });
+        await logWallCompositePublic("step3-overlay-applied", {
+          overlayBytes: overlay.length,
+          overlayAlphaFromFileOnly: true,
+        });
       }
     }
 
