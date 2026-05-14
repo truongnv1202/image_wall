@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 
-import { prependImageUrl } from "@/lib/imageStore";
+import { readImages, setWallpaperUrl } from "@/lib/imageStore";
 import { normalizeUploadImage } from "@/lib/normalizeUploadImage";
 import { rejectWithoutUploadToken } from "@/lib/uploadAuth";
 import { looksLikeHeicOrHeif } from "@/lib/sniffImageFormat";
@@ -23,6 +23,7 @@ function firstFormUploadToken(form: FormData): string | null {
   return null;
 }
 
+/** Upload ảnh wallpaper toàn khung (`/wall` ưu tiên hiển thị). */
 export async function POST(request: Request) {
   try {
     const form = await request.formData();
@@ -30,11 +31,9 @@ export async function POST(request: Request) {
     if (denied) return denied;
 
     const file = form.get("file");
-
     if (!(file instanceof Blob) || file.size === 0) {
       return NextResponse.json({ error: "Missing file" }, { status: 400 });
     }
-
     if (file.size > MAX_UPLOAD_BYTES) {
       return NextResponse.json(
         { error: `File quá lớn (tối đa ${Math.round(MAX_UPLOAD_BYTES / (1024 * 1024))} MB).` },
@@ -72,21 +71,34 @@ export async function POST(request: Request) {
     await writeFile(path.join(uploadDir, name), normalized.buffer);
 
     const publicUrl = `/uploads/${name}`;
-    const data = await prependImageUrl(publicUrl);
+    const payload = await setWallpaperUrl(publicUrl);
 
     void import("@/lib/generateWallComposite")
       .then((m) => m.regenerateWallComposite())
-      .catch((e) => console.error("[upload] wall composite", e));
+      .catch((e) => console.error("[wallpaper] wall composite", e));
 
-    return NextResponse.json({ url: publicUrl, ...data });
+    return NextResponse.json({ url: publicUrl, ...payload });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Write failed";
-    const code = err && typeof err === "object" && "code" in err ? String((err as { code?: string }).code) : "";
-    const hint =
-      code === "EACCES" || code === "EPERM"
-        ? "Không ghi được trên đĩa (quyền thư mục /app/data hoặc /app/public/uploads)."
-        : message;
-    console.error("[upload]", code || message, err);
-    return NextResponse.json({ error: hint }, { status: 500 });
+    console.error("[wallpaper POST]", err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/** Bỏ wallpaper (xóa file trên đĩa nếu là `/uploads/...`). */
+export async function DELETE(request: Request) {
+  const denied = rejectWithoutUploadToken(request);
+  if (denied) return denied;
+  try {
+    const before = await readImages();
+    const payload = await setWallpaperUrl(null);
+    void import("@/lib/generateWallComposite")
+      .then((m) => m.regenerateWallComposite())
+      .catch((e) => console.error("[wallpaper DELETE] wall composite", e));
+    return NextResponse.json({ ...payload, removed: before.wallpaperUrl });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed";
+    console.error("[wallpaper DELETE]", err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

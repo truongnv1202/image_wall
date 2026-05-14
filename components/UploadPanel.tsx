@@ -18,7 +18,7 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
   async function clearAllUploads() {
     if (
       !window.confirm(
-        "Xóa toàn bộ ảnh đã upload trên đĩa và reset danh sách về ảnh mẫu? Hành động này không hoàn tác.",
+        "Xóa toàn bộ ảnh đã upload + wallpaper (nếu có) trên đĩa và reset danh sách về ảnh mẫu? Hành động này không hoàn tác.",
       )
     ) {
       return;
@@ -34,7 +34,11 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
           : "/api/images";
       const res = await fetch(path, { method: "DELETE", headers, cache: "no-store" });
       const raw = await res.text();
-      let data = {} as { error?: string; images?: string[] };
+      let data = {} as {
+        error?: string;
+        images?: string[];
+        wallpaperUrl?: string | null;
+      };
       try {
         data = raw ? (JSON.parse(raw) as typeof data) : {};
       } catch {
@@ -55,13 +59,18 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
         return;
       }
       if (Array.isArray(data.images)) {
-        await mutate("/api/images", { images: data.images } satisfies ImagesPayload, {
-          revalidate: false,
-        });
+        await mutate(
+          "/api/images",
+          {
+            images: data.images,
+            wallpaperUrl: data.wallpaperUrl ?? null,
+          } satisfies ImagesPayload,
+          { revalidate: false },
+        );
       }
       void mutate("/api/images");
       void mutate("/api/wall-composite");
-      setStatus("Đã xóa ảnh upload và reset danh sách.");
+      setStatus("Đã xóa ảnh upload, wallpaper (nếu có) và reset danh sách.");
     } catch {
       setStatus("Lỗi mạng");
     } finally {
@@ -98,7 +107,11 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
       const raw = await res.text();
       const looksLikeHtml =
         /^\s*</.test(raw) && /<(html|head|body|!DOCTYPE)\b/i.test(raw.slice(0, 400));
-      let data = {} as { error?: string; images?: string[] };
+      let data = {} as {
+        error?: string;
+        images?: string[];
+        wallpaperUrl?: string | null;
+      };
       try {
         data = raw ? (JSON.parse(raw) as typeof data) : {};
       } catch {
@@ -131,10 +144,14 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
         return;
       }
       if (Array.isArray(data.images)) {
-        await mutate("/api/images", { images: data.images } satisfies ImagesPayload, {
-          revalidate: false,
-        });
-        /* Đồng bộ lại từ server — tránh cache lệch khiến tường không thấy ảnh mới. */
+        await mutate(
+          "/api/images",
+          {
+            images: data.images,
+            wallpaperUrl: data.wallpaperUrl ?? null,
+          } satisfies ImagesPayload,
+          { revalidate: false },
+        );
         void mutate("/api/images");
       } else {
         await mutate("/api/images");
@@ -146,6 +163,114 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
     } finally {
       setBusy(false);
       e.target.value = "";
+    }
+  }
+
+  async function onWallpaperChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBusy(true);
+    setStatus(null);
+    try {
+      const fd = new FormData();
+      fd.set("file", file);
+      if (apiUploadToken) {
+        fd.set("uploadToken", apiUploadToken);
+        fd.set("token", apiUploadToken);
+      }
+      const headers: HeadersInit = {};
+      if (apiUploadToken) headers["x-upload-token"] = apiUploadToken;
+      const wpPath =
+        apiUploadToken != null && apiUploadToken.length > 0
+          ? `/api/wallpaper?token=${encodeURIComponent(apiUploadToken)}`
+          : "/api/wallpaper";
+      const res = await fetch(wpPath, {
+        method: "POST",
+        body: fd,
+        headers,
+        cache: "no-store",
+      });
+      const raw = await res.text();
+      let data = {} as {
+        error?: string;
+        images?: string[];
+        wallpaperUrl?: string | null;
+      };
+      try {
+        data = raw ? (JSON.parse(raw) as typeof data) : {};
+      } catch {
+        data = {};
+      }
+      if (!res.ok) {
+        setStatus(
+          typeof data.error === "string" && data.error.length > 0
+            ? data.error
+            : `Upload wallpaper lỗi (${res.status})`,
+        );
+        return;
+      }
+      if (Array.isArray(data.images)) {
+        await mutate(
+          "/api/images",
+          {
+            images: data.images,
+            wallpaperUrl: data.wallpaperUrl ?? null,
+          } satisfies ImagesPayload,
+          { revalidate: false },
+        );
+        void mutate("/api/images");
+      } else {
+        await mutate("/api/images");
+      }
+      void mutate("/api/wall-composite");
+      setStatus("Đã đặt wallpaper — trang /wall hiển thị ảnh này (ưu tiên trên lưới / ảnh ghép).");
+    } catch {
+      setStatus("Lỗi mạng");
+    } finally {
+      setBusy(false);
+      e.target.value = "";
+    }
+  }
+
+  async function clearWallpaper() {
+    setBusy(true);
+    setStatus(null);
+    try {
+      const headers: HeadersInit = {};
+      if (apiUploadToken) headers["x-upload-token"] = apiUploadToken;
+      const wpPath =
+        apiUploadToken != null && apiUploadToken.length > 0
+          ? `/api/wallpaper?token=${encodeURIComponent(apiUploadToken)}`
+          : "/api/wallpaper";
+      const res = await fetch(wpPath, { method: "DELETE", headers, cache: "no-store" });
+      const raw = await res.text();
+      let data = {} as { error?: string; images?: string[]; wallpaperUrl?: string | null };
+      try {
+        data = raw ? (JSON.parse(raw) as typeof data) : {};
+      } catch {
+        data = {};
+      }
+      if (!res.ok) {
+        setStatus(typeof data.error === "string" ? data.error : `Lỗi ${res.status}`);
+        return;
+      }
+      if (Array.isArray(data.images)) {
+        await mutate(
+          "/api/images",
+          {
+            images: data.images,
+            wallpaperUrl: data.wallpaperUrl ?? null,
+          } satisfies ImagesPayload,
+          { revalidate: false },
+        );
+      }
+      void mutate("/api/images");
+      void mutate("/api/wall-composite");
+      setStatus("Đã gỡ wallpaper.");
+    } catch {
+      setStatus("Lỗi mạng");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -166,6 +291,36 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
         />
       </label>
       {status ? <p className="text-zinc-400">{status}</p> : null}
+
+      <div className="border-t border-zinc-800 pt-3">
+        <div className="font-medium text-zinc-100">Wallpaper (nền /wall)</div>
+        <p className="mt-1 text-xs text-zinc-500">
+          Một ảnh toàn màn; khi có thì <strong>ưu tiên</strong> hiển thị trên lưới ô và ảnh ghép server. API:{" "}
+          <code className="text-zinc-400">POST /api/wallpaper</code> (multipart <code className="text-zinc-400">file</code>
+          ), <code className="text-zinc-400">DELETE /api/wallpaper</code> để gỡ.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-sky-700/80 bg-sky-950/50 px-4 py-2 text-xs font-medium text-sky-100 hover:bg-sky-900/60 disabled:opacity-50">
+            {busy ? "Đang tải…" : "Chọn wallpaper"}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={busy}
+              onChange={(ev) => void onWallpaperChange(ev)}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={busy}
+            className="rounded-lg border border-zinc-600 px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-50"
+            onClick={() => void clearWallpaper()}
+          >
+            Gỡ wallpaper
+          </button>
+        </div>
+      </div>
+
       <div className="border-t border-zinc-800 pt-3">
         <button
           type="button"
@@ -177,7 +332,7 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
         </button>
         <p className="mt-2 text-xs text-zinc-500">
           Xóa mọi file trong <code className="text-zinc-400">public/uploads/</code>, đặt lại danh sách về ảnh mẫu
-          (Picsum). Cần xác nhận trong hộp thoại.
+          (Picsum) và gỡ wallpaper. Cần xác nhận trong hộp thoại.
         </p>
       </div>
     </div>

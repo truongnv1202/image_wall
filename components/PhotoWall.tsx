@@ -79,6 +79,9 @@ export function PhotoWall() {
   const compositeReady = Boolean(wallComposite?.ready && wallComposite.version > 0);
   const compositeFadeMs = wallCfg?.wallCompositeFadeMs ?? 900;
 
+  const wallpaperUrl =
+    typeof data?.wallpaperUrl === "string" && data.wallpaperUrl.length > 0 ? data.wallpaperUrl : null;
+
   const graphicBlendMode = useMemo(() => {
     return (
       wallCfg?.graphicBlendMode ??
@@ -210,56 +213,67 @@ export function PhotoWall() {
           ref={wallViewportRef}
           className="absolute inset-0 z-0 flex min-h-0 min-w-0 flex-col overflow-hidden"
         >
-          {compositeReady && wallComposite ? (
+          {wallpaperUrl ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={wallpaperUrl}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover"
+                draggable={false}
+                decoding="async"
+              />
+              <WallGraphicBlend blendMode={graphicBlendMode} overlayOpacity={graphicOverlayOpacity} />
+            </>
+          ) : compositeReady && wallComposite ? (
             <WallCompositeBackground
               url={wallComposite.url}
               version={wallComposite.version}
               fadeMs={compositeFadeMs}
             />
           ) : (
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" style={{ gap: STRIP_GAP_PX }}>
-              {rowTiles.map((tiles, row) => (
-                <div
-                  key={row}
-                  className="min-h-0 w-full shrink-0 overflow-hidden"
-                  style={{ height: tileH }}
-                >
-                  <div className="flex h-full w-full min-w-0 flex-nowrap items-stretch" style={{ gap: STRIP_GAP_PX }}>
-                    {tiles.map((src, i) => (
-                      <div
-                        key={`${row}-${i}`}
-                        className="shrink-0 overflow-hidden bg-[#0c1226]"
-                        style={{
-                          width: tileW,
-                          height: tileH,
-                          contentVisibility: "auto",
-                          containIntrinsicSize: `${tileW}px ${tileH}px`,
-                        }}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={src}
-                          alt=""
-                          width={tileW}
-                          height={tileH}
-                          className="block object-cover"
-                          loading="lazy"
-                          decoding="async"
-                          sizes={`${tileW}px`}
-                          draggable={false}
-                        />
-                      </div>
-                    ))}
+            <>
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" style={{ gap: STRIP_GAP_PX }}>
+                {rowTiles.map((tiles, row) => (
+                  <div
+                    key={row}
+                    className="min-h-0 w-full shrink-0 overflow-hidden"
+                    style={{ height: tileH }}
+                  >
+                    <div className="flex h-full w-full min-w-0 flex-nowrap items-stretch" style={{ gap: STRIP_GAP_PX }}>
+                      {tiles.map((src, i) => (
+                        <div
+                          key={`${row}-${i}`}
+                          className="shrink-0 overflow-hidden bg-[#0c1226]"
+                          style={{
+                            width: tileW,
+                            height: tileH,
+                            contentVisibility: "auto",
+                            containIntrinsicSize: `${tileW}px ${tileH}px`,
+                          }}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={src}
+                            alt=""
+                            width={tileW}
+                            height={tileH}
+                            className="block object-cover"
+                            loading="lazy"
+                            decoding="async"
+                            sizes={`${tileW}px`}
+                            draggable={false}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+              <WallGraphicBlend blendMode={graphicBlendMode} overlayOpacity={graphicOverlayOpacity} />
+            </>
           )}
         </div>
-
-        {!compositeReady ? (
-          <WallGraphicBlend blendMode={graphicBlendMode} overlayOpacity={graphicOverlayOpacity} />
-        ) : null}
 
         {hero ? (
           <div
