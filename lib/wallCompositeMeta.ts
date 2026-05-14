@@ -9,8 +9,7 @@ export type WallCompositeMeta = {
   useOverlayBNext: boolean;
   lastError?: string;
   /**
-   * Lần ghép gần nhất — STEP 2 (mask chu + CHUMOI):
-   * `chumoi` | `fallback-semi-chu` (mask yếu) | `skipped-no-chu` | `skipped-no-chu-dev-placeholder`.
+   * Lần ghép gần nhất — hiện cố định `grid-overlay-only` (lưới + overlay A, alpha từ file).
    */
   lastStep2?: string;
 };

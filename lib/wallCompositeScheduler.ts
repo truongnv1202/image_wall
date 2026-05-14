@@ -1,13 +1,13 @@
 /**
  * Ghép lại ảnh tường định kỳ: mỗi chu kỳ đọc `compositeIntervalMs` từ `wall-text.json`,
- * xáo trộn ô lưới ngẫu nhiên rồi chạy STEP 1–3 trong `regenerateWallComposite`.
+ * xáo trộn ô lưới rồi gọi `regenerateWallComposite` (lưới + overlay A nếu có).
  */
 let started = false;
 
 export function startWallCompositeScheduler(): void {
   if (started || typeof setTimeout === "undefined") return;
   started = true;
-  console.info("[wallCompositeScheduler] đã bật — chu kỳ theo compositeIntervalMs (STEP1–3)");
+  console.info("[wallCompositeScheduler] đã bật — chu kỳ theo compositeIntervalMs (lưới + overlay)");
   void (async () => {
     const { logWallCompositePublic } = await import("@/lib/wallCompositePublicLog");
     await logWallCompositePublic("scheduler-started", {});

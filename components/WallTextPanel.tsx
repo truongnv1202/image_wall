@@ -206,23 +206,19 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         Ảnh tường ghép (server, ~16:9)
       </div>
       <p className="text-xs text-zinc-500">
-        Server ghép <strong>lưới ảnh</strong> (STEP 1), mask theo <code className="text-zinc-400">chu.png</code> trong thư mục overlay (mặc định{" "}
-        <code className="text-zinc-400">public/wall-overlays/</code>; Docker có thể set env{" "}
-        <code className="text-zinc-400">WALL_OVERLAYS_DIR</code> tuyệt đối, vd.{" "}
-        <code className="text-zinc-400">/app/public/wall-overlays</code>) + lưới trong chữ (STEP 2 — CHUMOI), rồi{" "}
-        <code className="text-zinc-400">nen.png</code> cùng thư mục và overlay A nếu có.{" "}
-        <code className="text-zinc-400">wall-composite-A.png</code>: ưu tiên bản trong{" "}
-        <code className="text-zinc-400">data/wall-overlays/</code> (upload API), rồi thư mục overlay; blend theo cấu hình, độ mờ theo{" "}
-        <strong>alpha trong file</strong> (không nhân thêm từ JSON). Thiếu file thì bỏ qua overlay. Mỗi lần xong chỉ giữ{" "}
-        <code className="text-zinc-400">wall-composite.jpg</code> — <code className="text-zinc-400">/api/wall-composite/image</code>.
-        Log từng bước ghép: <code className="text-zinc-400">/logs/wall-composite-step.log</code> (nếu ghi được vào{" "}
-        <code className="text-zinc-400">public/logs</code>) hoặc <code className="text-zinc-400">data/wall-composite-step.log</code>{" "}
-        (fallback khi container không ghi được public).
+        Server chỉ ghép <strong>lưới ảnh</strong> theo cấu hình dưới đây, rồi phủ{" "}
+        <code className="text-zinc-400">wall-composite-A.png</code> lên trên nếu có: ưu tiên{" "}
+        <code className="text-zinc-400">data/wall-overlays/</code> (upload API), sau đó thư mục overlay (
+        <code className="text-zinc-400">WALL_OVERLAYS_DIR</code> / <code className="text-zinc-400">public/wall-overlays</code>
+        ). Blend theo <code className="text-zinc-400">graphicBlendMode</code>; độ trong suốt theo <strong>alpha trong file</strong>. Kết quả:{" "}
+        <code className="text-zinc-400">wall-composite.jpg</code> — <code className="text-zinc-400">/api/wall-composite/image</code>. Log:{" "}
+        <code className="text-zinc-400">/logs/wall-composite-step.log</code> hoặc{" "}
+        <code className="text-zinc-400">data/wall-composite-step.log</code>.
       </p>
       {compApi ? (
         <p className="text-xs text-emerald-600/90 dark:text-emerald-400/90">
           Ghép server: {compApi.ready ? `bản v${compApi.version}` : "chưa có file"}{" "}
-          {compApi.lastStep2 != null && compApi.lastStep2.length > 0 ? `— STEP2: ${compApi.lastStep2}` : ""}
+          {compApi.lastStep2 != null && compApi.lastStep2.length > 0 ? `— ${compApi.lastStep2}` : ""}
           {compApi.lastError ? ` — lỗi: ${compApi.lastError}` : ""}
         </p>
       ) : null}
