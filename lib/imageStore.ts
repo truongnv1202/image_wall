@@ -13,7 +13,8 @@ function uploadsAbsFromPublicUrl(url: string): string | null {
   return path.join(process.cwd(), "public", rel);
 }
 
-function normalizeWallpaperUrl(raw: unknown): string | null {
+/** Chỉ để migrate JSON cũ có `wallpaperUrl` trỏ uploads. */
+function legacyWallpaperUploadUrl(raw: unknown): string | null {
   if (typeof raw !== "string" || raw.length === 0) return null;
   const t = raw.trim();
   if (!t.startsWith("/uploads/")) return null;
@@ -23,10 +24,9 @@ function normalizeWallpaperUrl(raw: unknown): string | null {
 
 function normalizeImagesPayload(parsed: unknown): ImagesPayload {
   const o = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
-  const wallpaperUrl = normalizeWallpaperUrl(o.wallpaperUrl);
   const rawImages = Array.isArray(o.images) ? o.images.filter((x): x is string => typeof x === "string") : [];
   const images = rawImages.length > 0 ? rawImages : [...DEFAULT_IMAGE_URLS];
-  return { images, wallpaperUrl };
+  return { images, wallpaperUrl: null };
 }
 
 async function ensureFile(): Promise<void> {
@@ -56,7 +56,17 @@ export async function readImages(): Promise<ImagesPayload> {
     await writePayload(fallback);
     return fallback;
   }
-  return normalizeImagesPayload(parsed);
+
+  const o = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+  const legacy = legacyWallpaperUploadUrl(o.wallpaperUrl);
+  const normalized = normalizeImagesPayload(parsed);
+
+  if (legacy) {
+    await unlinkUploadsFileIfAny(legacy);
+    await writePayload(normalized);
+  }
+
+  return normalized;
 }
 
 /** Chuỗi Promise để không đọc/ghi `images.json` chồng chéo (upload nhanh / song song). */
@@ -74,7 +84,7 @@ async function unlinkUploadsFileIfAny(publicUrl: string | null): Promise<void> {
   }
 }
 
-/** Xóa mọi file trong `public/uploads/`, ghi lại `images.json` chỉ còn URL mẫu (Picsum) + bỏ wallpaper. */
+/** Xóa mọi file trong `public/uploads/`, ghi lại `images.json` chỉ còn URL mẫu (Picsum). */
 export async function resetImagesToDefaultsAndRemoveUploads(): Promise<ImagesPayload> {
   const prev = prependChain;
   let done!: () => void;
@@ -85,9 +95,6 @@ export async function resetImagesToDefaultsAndRemoveUploads(): Promise<ImagesPay
     console.error("[imageStore] prepend queue hỏng trước reset:", e);
   });
   try {
-    const current = await readImages();
-    await unlinkUploadsFileIfAny(current.wallpaperUrl);
-
     const uploadDir = path.join(process.cwd(), "public", "uploads");
     try {
       const names = await fs.readdir(uploadDir);
@@ -104,7 +111,7 @@ export async function resetImagesToDefaultsAndRemoveUploads(): Promise<ImagesPay
   }
 }
 
-/** unshift URL — ảnh mới lên đầu mảng (bỏ trùng URL nếu có); giữ `wallpaperUrl`. */
+/** unshift URL — ảnh mới lên đầu mảng (bỏ trùng URL nếu có). */
 export async function prependImageUrl(url: string): Promise<ImagesPayload> {
   const prev = prependChain;
   let done!: () => void;
@@ -119,32 +126,8 @@ export async function prependImageUrl(url: string): Promise<ImagesPayload> {
     const deduped = current.images.filter((u) => u !== url);
     const next: ImagesPayload = {
       images: [url, ...deduped],
-      wallpaperUrl: current.wallpaperUrl,
+      wallpaperUrl: null,
     };
-    await writePayload(next);
-    return next;
-  } finally {
-    done();
-  }
-}
-
-/** Đặt hoặc xóa wallpaper (URL `/uploads/...` hoặc `null`). Xóa file cũ trên đĩa nếu thay bằng URL khác / null. */
-export async function setWallpaperUrl(nextUrl: string | null): Promise<ImagesPayload> {
-  const prev = prependChain;
-  let done!: () => void;
-  prependChain = new Promise<void>((resolve) => {
-    done = resolve;
-  });
-  await prev.catch((e) => {
-    console.error("[imageStore] wallpaper queue:", e);
-  });
-  try {
-    const current = await readImages();
-    const old = current.wallpaperUrl;
-    if (old && old !== nextUrl) {
-      await unlinkUploadsFileIfAny(old);
-    }
-    const next: ImagesPayload = { ...current, wallpaperUrl: nextUrl };
     await writePayload(next);
     return next;
   } finally {

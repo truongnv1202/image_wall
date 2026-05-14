@@ -48,9 +48,6 @@ export function PhotoWall() {
     revalidateOnFocus: true,
   });
 
-  const wallpaperUrl =
-    typeof data?.wallpaperUrl === "string" && data.wallpaperUrl.length > 0 ? data.wallpaperUrl : null;
-
   /** Chỉ ảnh gửi qua API/upload (`/uploads/...`) — không dùng URL mẫu hay ảnh ghép server. */
   const uploadPool = useMemo(() => {
     const raw = Array.isArray(data?.images) && data.images.length > 0 ? data.images : [];
@@ -171,22 +168,12 @@ export function PhotoWall() {
           ref={wallViewportRef}
           className="absolute inset-0 z-0 flex min-h-0 min-w-0 flex-col overflow-hidden"
         >
-          {wallpaperUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={wallpaperUrl}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover"
-              draggable={false}
-              decoding="async"
-            />
-          ) : uploadPool.length === 0 ? (
+          {uploadPool.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center text-sm text-zinc-500">
               <p>Chưa có ảnh upload trên tường.</p>
               <p className="max-w-md text-xs text-zinc-600">
                 Gửi file qua <code className="text-zinc-400">POST /api/upload</code> (multipart{" "}
-                <code className="text-zinc-400">file</code>, kèm token) hoặc đặt nền qua{" "}
-                <code className="text-zinc-400">POST /api/wallpaper</code>.
+                <code className="text-zinc-400">file</code>, kèm token).
               </p>
             </div>
           ) : (

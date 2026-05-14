@@ -79,8 +79,8 @@ export default async function SecretUploadPage({ params }: Props) {
     <div className="flex min-h-screen flex-col items-center gap-8 bg-zinc-950 px-3 py-10 pb-16 text-zinc-100">
       <p className="max-w-md text-center text-xs text-zinc-500">
         Trang quản trị thử (không công khai). Tường <code className="text-zinc-400">/wall</code> chỉ hiện ảnh upload (
-        <code className="text-zinc-400">/uploads/…</code>) hoặc wallpaper — không watermark. Cấu hình lưới/chữ/ghép
-        server bên dưới. Ảnh ô lưới: <code className="text-zinc-400">POST /api/upload</code>.
+        <code className="text-zinc-400">/uploads/…</code>) — không watermark. Cấu hình lưới/chữ/ghép server bên dưới.
+        Ảnh ô lưới: <code className="text-zinc-400">POST /api/upload</code>.
       </p>
       <UploadPanel apiUploadToken={token} />
       <WallTextPanel apiUploadToken={token} />
