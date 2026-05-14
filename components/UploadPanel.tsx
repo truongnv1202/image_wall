@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent } from "react";
+import { useState, useRef, type ChangeEvent } from "react";
 import { useSWRConfig } from "swr";
 
 import type { ImagesPayload } from "@/lib/types";
@@ -14,6 +14,7 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
   const { mutate } = useSWRConfig();
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const wallpaperFileRef = useRef<HTMLInputElement>(null);
 
   async function clearAllUploads() {
     if (
@@ -278,38 +279,46 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
     <div className="flex w-full max-w-[min(100vw,calc((100vh-10rem)*100/60))] flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-sm text-zinc-200">
       <div className="font-medium text-zinc-100">Gửi ảnh lên tường</div>
       <p className="text-xs text-zinc-500">
-        Ảnh được chèn vào đầu mảng; lưới cập nhật ngay và qua polling ~{4}s.
+        Ảnh ô lưới: chèn đầu mảng; lưới cập nhật ngay và qua polling ~{4}s. Wallpaper: một ảnh nền toàn
+        màn cho <code className="text-zinc-400">/wall</code> (ưu tiên trên lưới / ảnh ghép).
       </p>
-      <label className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-emerald-700 px-4 py-2.5 font-medium text-white hover:bg-emerald-600 disabled:opacity-50">
-        {busy ? "Đang tải…" : "Chọn ảnh"}
+      <div className="flex flex-wrap items-stretch gap-3">
+        <label className="inline-flex min-h-[2.75rem] flex-1 cursor-pointer items-center justify-center rounded-lg bg-emerald-700 px-4 py-2.5 text-center font-medium text-white hover:bg-emerald-600 disabled:opacity-50 sm:flex-initial sm:min-w-[10rem]">
+          {busy ? "Đang tải…" : "Chọn ảnh tường"}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            disabled={busy}
+            onChange={onChange}
+          />
+        </label>
         <input
+          ref={wallpaperFileRef}
           type="file"
           accept="image/*"
           className="hidden"
           disabled={busy}
-          onChange={onChange}
+          onChange={(ev) => void onWallpaperChange(ev)}
         />
-      </label>
+        <button
+          type="button"
+          disabled={busy}
+          className="inline-flex min-h-[2.75rem] flex-1 items-center justify-center rounded-lg bg-sky-600 px-4 py-2.5 text-center font-medium text-white hover:bg-sky-500 disabled:opacity-50 sm:flex-initial sm:min-w-[10rem]"
+          onClick={() => wallpaperFileRef.current?.click()}
+        >
+          {busy ? "Đang tải…" : "Upload wallpaper"}
+        </button>
+      </div>
       {status ? <p className="text-zinc-400">{status}</p> : null}
 
       <div className="border-t border-zinc-800 pt-3">
-        <div className="font-medium text-zinc-100">Wallpaper (nền /wall)</div>
+        <div className="font-medium text-zinc-100">Wallpaper — gỡ / API</div>
         <p className="mt-1 text-xs text-zinc-500">
-          Một ảnh toàn màn; khi có thì <strong>ưu tiên</strong> hiển thị trên lưới ô và ảnh ghép server. API:{" "}
-          <code className="text-zinc-400">POST /api/wallpaper</code> (multipart <code className="text-zinc-400">file</code>
-          ), <code className="text-zinc-400">DELETE /api/wallpaper</code> để gỡ.
+          Nút xanh dương phía trên gửi lên <code className="text-zinc-400">POST /api/wallpaper</code>. Dưới đây
+          gỡ nhanh hoặc dùng curl như tài liệu.
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
-          <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-sky-700/80 bg-sky-950/50 px-4 py-2 text-xs font-medium text-sky-100 hover:bg-sky-900/60 disabled:opacity-50">
-            {busy ? "Đang tải…" : "Chọn wallpaper"}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              disabled={busy}
-              onChange={(ev) => void onWallpaperChange(ev)}
-            />
-          </label>
           <button
             type="button"
             disabled={busy}
