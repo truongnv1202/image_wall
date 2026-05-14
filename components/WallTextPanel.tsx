@@ -213,6 +213,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         <code className="text-zinc-400">nen.png</code> cùng thư mục và overlay A nếu có.{" "}
         <code className="text-zinc-400">wall-composite-A.png</code> thiếu thì bỏ qua overlay. Mỗi lần xong chỉ giữ{" "}
         <code className="text-zinc-400">wall-composite.jpg</code> — <code className="text-zinc-400">/api/wall-composite/image</code>.
+        Log từng bước ghép: <code className="text-zinc-400">/logs/wall-composite-step.log</code> (append JSON, mỗi dòng một sự kiện).
       </p>
       {compApi ? (
         <p className="text-xs text-emerald-600/90 dark:text-emerald-400/90">

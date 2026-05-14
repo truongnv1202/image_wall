@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# log ghép tường (tạo runtime trong public/logs)
+/public/logs/*.log
+
 # debug
 npm-debug.log*
 yarn-debug.log*

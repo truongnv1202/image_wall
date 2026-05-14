@@ -15,6 +15,7 @@ import {
 import { readWallText } from "@/lib/wallTextStore";
 import { STRIP_GAP_PX } from "@/lib/wallStripConstants";
 import { ensureWallUploadTileOnDisk } from "@/lib/wallUploadTile";
+import { logWallCompositePublic } from "@/lib/wallCompositePublicLog";
 import { rasterSvgChuPlaceholder } from "@/lib/wallCompositeSvgChu";
 
 const root = process.cwd();
@@ -264,12 +265,24 @@ export async function regenerateWallComposite(): Promise<void> {
   });
   await prev.catch(() => {});
 
+  await logWallCompositePublic("regenerate-lock-acquired", { pid: process.pid });
+
   try {
     const wall = await readWallText();
     const devChuBootstrap = await ensureDevPlaceholderChuPngIfMissing();
     const { images } = await readImages();
     const pool = images.length > 0 ? images : [];
+    await logWallCompositePublic("after-read-config", {
+      overlaysBase,
+      poolSize: pool.length,
+      devChuBootstrap,
+      gridCols: wall.gridCols,
+      gridRows: wall.gridRows,
+      outW: wall.compositeOutWidth,
+      outH: wall.compositeOutHeight,
+    });
     if (pool.length === 0) {
+      await logWallCompositePublic("abort-step0-no-images-in-pool", {});
       const meta = await readWallCompositeMeta();
       await writeWallCompositeMeta({
         ...meta,
@@ -324,6 +337,7 @@ export async function regenerateWallComposite(): Promise<void> {
     }
 
     if (composites.length === 0) {
+      await logWallCompositePublic("abort-step1-no-tiles-composited", { cells, tried: cellIdx });
       const meta = await readWallCompositeMeta();
       await writeWallCompositeMeta({
         ...meta,
@@ -341,6 +355,11 @@ export async function regenerateWallComposite(): Promise<void> {
       },
     });
     const gridJpeg = await base.composite(composites).jpeg({ quality: 88 }).toBuffer();
+    await logWallCompositePublic("step1-grid-jpeg-done", {
+      composites: composites.length,
+      gridW,
+      gridH,
+    });
 
     /* Lưới full khung xuất — RGBA raw + PNG nền (STEP 3: lớp dưới cùng). */
     const { data: gridRaw, info: gridInfo } = await sharp(gridJpeg)
@@ -355,11 +374,22 @@ export async function regenerateWallComposite(): Promise<void> {
       .png()
       .toBuffer();
 
+    await logWallCompositePublic("step1-grid-scaled-rgba", {
+      outW,
+      outH,
+      gridInfoW: gridInfo.width,
+      gridInfoH: gridInfo.height,
+    });
+
     const meta = await readWallCompositeMeta();
     const stack: OverlayOptions[] = [];
     let lastStep2: string = "skipped-no-chu";
 
     const nenBuf = await readOptionalFirstPath(NEN_PNG_PATHS);
+    await logWallCompositePublic("step3-nen-load", {
+      nenBytes: nenBuf ? nenBuf.length : 0,
+      nenPaths: NEN_PNG_PATHS.join(" | "),
+    });
     if (nenBuf) {
       let nenLayer = await sharp(nenBuf)
         .resize(outW, outH, { fit: "cover", position: "centre" })
@@ -374,6 +404,10 @@ export async function regenerateWallComposite(): Promise<void> {
 
     let chuBuf = await readOptionalFirstPath(CHU_PNG_PATHS);
     let chuFromSvgFallback = false;
+    await logWallCompositePublic("step2-chu-file-attempt", {
+      chuPaths: CHU_PNG_PATHS.join(" | "),
+      chuFoundBytes: chuBuf ? chuBuf.length : 0,
+    });
     if (!chuBuf) {
       const phrase = wall.phrases.length > 0 ? wall.phrases[0]! : "HÒA BÌNH";
       chuBuf = await rasterSvgChuPlaceholder(phrase, outW, outH);
@@ -382,7 +416,13 @@ export async function regenerateWallComposite(): Promise<void> {
         "[wallComposite] STEP2: không có chu.png — dùng chữ SVG từ wall-text, đã thử:",
         CHU_PNG_PATHS.join(" | "),
       );
+      await logWallCompositePublic("step2-chu-using-svg-fallback", { phraseLen: phrase.length });
     }
+
+    await logWallCompositePublic("step2-chu-buffer-ready", {
+      chuFromSvgFallback,
+      chuBytes: chuBuf.length,
+    });
 
     /**
      * STEP 2: mask từ chu (alpha × độ lệch màu viền khi không có alpha).
@@ -392,11 +432,13 @@ export async function regenerateWallComposite(): Promise<void> {
     const chuCanvasRaw = await buildChuRgbaCanvasRaw(chuBuf, outW, outH);
     const mask = buildLetterMaskFromChuRgba(Buffer.from(chuCanvasRaw), outW, outH);
     const mMax = maskMaxValue(mask);
+    await logWallCompositePublic("step2-mask-built", { mMax, outW, outH });
     if (mMax < 5) {
       console.warn("[wallComposite] STEP2: mask quá yếu (max=", mMax, ") — lớp chữ mờ phủ cả khung");
       lastStep2 = chuFromSvgFallback ? "fallback-semi-chu-svg" : "fallback-semi-chu";
       const chuLayer = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
       stack.push({ input: chuLayer, left: 0, top: 0 });
+      await logWallCompositePublic("step2-branch-fallback-semi-chu", { lastStep2, stackLen: stack.length });
     } else {
       if (chuFromSvgFallback) {
         lastStep2 = "chumoi-svg-phrase";
@@ -417,6 +459,7 @@ export async function regenerateWallComposite(): Promise<void> {
       stack.push({ input: chumoiPng, left: 0, top: 0 });
       const chuOnTop = await buildChuLayerCentered(chuBuf, outW, outH, 0.34);
       stack.push({ input: chuOnTop, left: 0, top: 0 });
+      await logWallCompositePublic("step2-branch-chumoi-done", { lastStep2, stackLen: stack.length });
     }
 
     const overlayOpacity = Math.min(1, Math.max(0, wall.graphicOverlayOpacity));
@@ -425,6 +468,7 @@ export async function regenerateWallComposite(): Promise<void> {
       const overlayBuf = await readOptionalFile(OVERLAY_A);
       if (!overlayBuf) {
         console.warn("[wallComposite] không có overlay A — bỏ qua (trước đây sẽ lỗi):", OVERLAY_A);
+        await logWallCompositePublic("step3-overlay-skipped", { overlayPath: OVERLAY_A });
       } else {
         let overlay = await sharp(overlayBuf)
           .resize(outW, outH, { fit: "cover", position: "centre" })
@@ -433,8 +477,11 @@ export async function regenerateWallComposite(): Promise<void> {
           .toBuffer();
         overlay = await applyAlphaScale(overlay, overlayOpacity);
         stack.push({ input: overlay, left: 0, top: 0, blend: overlayBlend });
+        await logWallCompositePublic("step3-overlay-applied", { overlayBytes: overlay.length });
       }
     }
+
+    await logWallCompositePublic("step4-merge-start", { stackLen: stack.length });
 
     const merged =
       stack.length === 0
@@ -467,7 +514,14 @@ export async function regenerateWallComposite(): Promise<void> {
       lastError: undefined,
       lastStep2,
     });
+    await logWallCompositePublic("regenerate-success", {
+      lastStep2,
+      version: meta.version + 1,
+      stackLen: stack.length,
+    });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await logWallCompositePublic("regenerate-error", { error: msg });
     console.error("[wallComposite]", err);
     const meta = await readWallCompositeMeta();
     await writeWallCompositeMeta({
@@ -475,6 +529,7 @@ export async function regenerateWallComposite(): Promise<void> {
       lastError: err instanceof Error ? err.message : String(err),
     });
   } finally {
+    await logWallCompositePublic("regenerate-finally-lock-release", {});
     done();
   }
 }
