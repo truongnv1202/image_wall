@@ -401,8 +401,6 @@ export async function regenerateWallComposite(): Promise<void> {
     const meta = await readWallCompositeMeta();
     const stack: OverlayOptions[] = [];
     let lastStep2: string = "skipped-no-chu";
-    /** Đã phủ overlay A trong nhánh mask yếu — không áp lại ở khối overlay cuối. */
-    let overlayAFromNoChumoiFallback = false;
 
     const nenBuf = await readOptionalFirstPath(NEN_PNG_PATHS);
     await logWallCompositePublic("step3-nen-load", {
@@ -440,30 +438,8 @@ export async function regenerateWallComposite(): Promise<void> {
         blendMode: wall.graphicBlendMode,
         overlayAlphaFromFileOnly: true,
         overlayPaths: OVERLAY_A_SEARCH.join(" | "),
+        overlayWillApplyLast: true,
       });
-      const overlayBlendSkip = cssBlendToSharp(wall.graphicBlendMode) as Blend;
-      const overlayBufSkip = await readOptionalFirstPath(OVERLAY_A_SEARCH);
-      if (!overlayBufSkip) {
-        console.warn(
-          "[wallComposite] chế độ tạm (bỏ chữ): thiếu wall-composite-A.png — đã thử:",
-          OVERLAY_A_SEARCH.join(" | "),
-        );
-        await logWallCompositePublic("step3-overlay-temp-skipped", {
-          reason: "missing-wall-composite-A.png",
-          overlayPaths: OVERLAY_A_SEARCH.join(" | "),
-        });
-      } else {
-        const overlaySkip = await sharp(overlayBufSkip)
-          .resize(outW, outH, { fit: "cover", position: "centre" })
-          .ensureAlpha()
-          .png()
-          .toBuffer();
-        stack.push({ input: overlaySkip, left: 0, top: 0, blend: overlayBlendSkip });
-        await logWallCompositePublic("step3-overlay-applied-temp-skip-step2", {
-          overlayBytes: overlaySkip.length,
-          blend: wall.graphicBlendMode,
-        });
-      }
     } else {
       let chuBuf = await readOptionalFirstPath(CHU_PNG_PATHS);
       let chuFromSvgFallback = false;
@@ -501,29 +477,6 @@ export async function regenerateWallComposite(): Promise<void> {
         lastStep2 = chuFromSvgFallback ? "fallback-semi-chu-svg" : "fallback-semi-chu";
         const chuLayer = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
         stack.push({ input: chuLayer, left: 0, top: 0 });
-
-        const overlayBufNoChumoi = await readOptionalFirstPath(OVERLAY_A_SEARCH);
-        if (overlayBufNoChumoi) {
-          const blendFallback = cssBlendToSharp(wall.graphicBlendMode) as Blend;
-          const overlayTop = await sharp(overlayBufNoChumoi)
-            .resize(outW, outH, { fit: "cover", position: "centre" })
-            .ensureAlpha()
-            .png()
-            .toBuffer();
-          stack.push({ input: overlayTop, left: 0, top: 0, blend: blendFallback });
-          overlayAFromNoChumoiFallback = true;
-          await logWallCompositePublic("step3-overlay-a-no-chumoi-fallback", {
-            overlayPaths: OVERLAY_A_SEARCH.join(" | "),
-            overlayAlphaFromFileOnly: true,
-            mMax,
-          });
-        } else {
-          await logWallCompositePublic("step3-overlay-a-no-chumoi-fallback-skipped", {
-            reason: "missing-wall-composite-A.png",
-            overlayPaths: OVERLAY_A_SEARCH.join(" | "),
-            mMax,
-          });
-        }
 
         await logWallCompositePublic("step2-chumoi-png-skipped", {
           reason: "weak-mask-fallback-semi-chu",
@@ -563,28 +516,27 @@ export async function regenerateWallComposite(): Promise<void> {
     }
 
     const overlayBlend = cssBlendToSharp(wall.graphicBlendMode) as Blend;
-    if (!wallCompositeSkipStep2Letter() && !overlayAFromNoChumoiFallback) {
-      const overlayBuf = await readOptionalFirstPath(OVERLAY_A_SEARCH);
-      if (!overlayBuf) {
-        console.warn(
-          "[wallComposite] không có overlay A — bỏ qua (trước đây sẽ lỗi), đã thử:",
-          OVERLAY_A_SEARCH.join(" | "),
-        );
-        await logWallCompositePublic("step3-overlay-skipped", {
-          overlayPaths: OVERLAY_A_SEARCH.join(" | "),
-        });
-      } else {
-        const overlay = await sharp(overlayBuf)
-          .resize(outW, outH, { fit: "cover", position: "centre" })
-          .ensureAlpha()
-          .png()
-          .toBuffer();
-        stack.push({ input: overlay, left: 0, top: 0, blend: overlayBlend });
-        await logWallCompositePublic("step3-overlay-applied", {
-          overlayBytes: overlay.length,
-          overlayAlphaFromFileOnly: true,
-        });
-      }
+    const overlayBuf = await readOptionalFirstPath(OVERLAY_A_SEARCH);
+    if (!overlayBuf) {
+      console.warn(
+        "[wallComposite] không có wall-composite-A.png — đã thử:",
+        OVERLAY_A_SEARCH.join(" | "),
+      );
+      await logWallCompositePublic("step3-overlay-skipped", {
+        overlayPaths: OVERLAY_A_SEARCH.join(" | "),
+      });
+    } else {
+      const overlay = await sharp(overlayBuf)
+        .resize(outW, outH, { fit: "cover", position: "centre" })
+        .ensureAlpha()
+        .png()
+        .toBuffer();
+      stack.push({ input: overlay, left: 0, top: 0, blend: overlayBlend });
+      await logWallCompositePublic("step3-overlay-applied-top", {
+        overlayBytes: overlay.length,
+        overlayAlphaFromFileOnly: true,
+        blend: wall.graphicBlendMode,
+      });
     }
 
     await logWallCompositePublic("step4-merge-start", { stackLen: stack.length });
