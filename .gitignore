@@ -28,6 +28,9 @@
 /public/logs/*.log
 /data/wall-composite-step.log
 
+# ảnh debug CHUMOI (mỗi lần ghép tường thành công nhánh mask đủ mạnh)
+/public/generated/chumoi.png
+
 # debug
 npm-debug.log*
 yarn-debug.log*

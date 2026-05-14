@@ -15,38 +15,25 @@ import {
 import { readWallText } from "@/lib/wallTextStore";
 import { STRIP_GAP_PX } from "@/lib/wallStripConstants";
 import { ensureWallUploadTileOnDisk } from "@/lib/wallUploadTile";
-import { logWallCompositePublic } from "@/lib/wallCompositePublicLog";
+import { logWallCompositePublic, logWallOverlayChuNenExists } from "@/lib/wallCompositePublicLog";
 import { rasterSvgChuPlaceholder } from "@/lib/wallCompositeSvgChu";
+import {
+  chuPngSearchPaths,
+  nenPngSearchPaths,
+  wallCompositeOverlayAPath,
+  wallOverlaysDir,
+} from "@/lib/wallOverlayPaths";
 
 const root = process.cwd();
 const OUT_REL = path.join("public", "generated", "wall-composite.jpg");
+/** Ảnh debug lớp CHUMOI (mask × lưới + multiply chữ) — `/generated/chumoi.png`. */
+const CHUMOI_OUT_REL = path.join("public", "generated", "chumoi.png");
 const GENERATED_DIR = path.join(root, "public", "generated");
 
-/**
- * Thư mục chứa `chu.png`, `nen.png`, `wall-composite-A.png`.
- * Production (Docker): đặt `WALL_OVERLAYS_DIR=/opt/image_wall/public/wall-overlays` nếu `cwd` ≠ thư mục project.
- * Mặc định: `{cwd}/public/wall-overlays`.
- */
-function wallOverlaysDir(): string {
-  const env = process.env.WALL_OVERLAYS_DIR?.trim();
-  if (env && env.length > 0) {
-    return path.resolve(env);
-  }
-  return path.join(root, "public", "wall-overlays");
-}
-
 const overlaysBase = wallOverlaysDir();
-const OVERLAY_A = path.join(overlaysBase, "wall-composite-A.png");
-
-/** Ưu tiên thư mục overlay (cấu hình hoặc `public/wall-overlays/`), sau đó `public/` gốc. */
-const NEN_PNG_PATHS = [
-  path.join(overlaysBase, "nen.png"),
-  path.join(root, "public", "nen.png"),
-] as const;
-const CHU_PNG_PATHS = [
-  path.join(overlaysBase, "chu.png"),
-  path.join(root, "public", "chu.png"),
-] as const;
+const OVERLAY_A = wallCompositeOverlayAPath();
+const NEN_PNG_PATHS = nenPngSearchPaths();
+const CHU_PNG_PATHS = chuPngSearchPaths();
 
 /** Đè nền thiết kế sau lưới ảnh (alpha lớp). */
 const NEN_OPACITY = 0.65;
@@ -266,6 +253,7 @@ export async function regenerateWallComposite(): Promise<void> {
   await prev.catch(() => {});
 
   await logWallCompositePublic("regenerate-lock-acquired", { pid: process.pid });
+  await logWallOverlayChuNenExists();
 
   try {
     const wall = await readWallText();
@@ -301,6 +289,20 @@ export async function regenerateWallComposite(): Promise<void> {
 
     const gridW = cols * cellW + Math.max(0, cols - 1) * gap;
     const gridH = rows * cellH + Math.max(0, rows - 1) * gap;
+
+    await logWallCompositePublic("step1-grid-start", {
+      cols,
+      rows,
+      cells: rows * cols,
+      gridW,
+      gridH,
+      gap,
+      cellW,
+      cellH,
+      poolSize: pool.length,
+      outW,
+      outH,
+    });
 
     /** STEP 1: lưới cols×rows từ config; lặp pool; mỗi lần ghép xáo trộn vị trí ô ngẫu nhiên. */
     const cells = rows * cols;
@@ -357,6 +359,7 @@ export async function regenerateWallComposite(): Promise<void> {
     const gridJpeg = await base.composite(composites).jpeg({ quality: 88 }).toBuffer();
     await logWallCompositePublic("step1-grid-jpeg-done", {
       composites: composites.length,
+      cellsPlanned: cells,
       gridW,
       gridH,
     });
@@ -398,8 +401,21 @@ export async function regenerateWallComposite(): Promise<void> {
         .toBuffer();
       nenLayer = await applyAlphaScale(nenLayer, NEN_OPACITY);
       stack.push({ input: nenLayer, left: 0, top: 0 });
+      await logWallCompositePublic("step3-nen-layer-on-stack", {
+        applied: true,
+        nenOpacity: NEN_OPACITY,
+        nenLayerBytes: nenLayer.length,
+        outW,
+        outH,
+        stackOrderNote: "gridBasePng_bottom_then_stack_nen_chumoi_chu",
+      });
     } else {
       console.warn("[wallComposite] không có nen.png — đã thử:", NEN_PNG_PATHS.join(" | "));
+      await logWallCompositePublic("step3-nen-layer-on-stack", {
+        applied: false,
+        reason: "missing-nen-png",
+        nenPathsTried: NEN_PNG_PATHS.join(" | "),
+      });
     }
 
     let chuBuf = await readOptionalFirstPath(CHU_PNG_PATHS);
@@ -438,6 +454,10 @@ export async function regenerateWallComposite(): Promise<void> {
       lastStep2 = chuFromSvgFallback ? "fallback-semi-chu-svg" : "fallback-semi-chu";
       const chuLayer = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
       stack.push({ input: chuLayer, left: 0, top: 0 });
+      await logWallCompositePublic("step2-chumoi-png-skipped", {
+        reason: "weak-mask-fallback-semi-chu",
+        mMax,
+      });
       await logWallCompositePublic("step2-branch-fallback-semi-chu", { lastStep2, stackLen: stack.length });
     } else {
       if (chuFromSvgFallback) {
@@ -456,6 +476,14 @@ export async function regenerateWallComposite(): Promise<void> {
         .composite([{ input: chuForTone, blend: "multiply", left: 0, top: 0 }])
         .png()
         .toBuffer();
+      const chumoiAbs = path.join(root, CHUMOI_OUT_REL);
+      await fs.mkdir(path.dirname(chumoiAbs), { recursive: true });
+      await fs.writeFile(chumoiAbs, chumoiPng);
+      await logWallCompositePublic("step2-chumoi-png-written", {
+        path: CHUMOI_OUT_REL.replace(/\\/g, "/"),
+        bytes: chumoiPng.length,
+        lastStep2,
+      });
       stack.push({ input: chumoiPng, left: 0, top: 0 });
       const chuOnTop = await buildChuLayerCentered(chuBuf, outW, outH, 0.34);
       stack.push({ input: chuOnTop, left: 0, top: 0 });
