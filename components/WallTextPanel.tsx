@@ -211,7 +211,9 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         <code className="text-zinc-400">WALL_OVERLAYS_DIR</code> tuyệt đối, vd.{" "}
         <code className="text-zinc-400">/app/public/wall-overlays</code>) + lưới trong chữ (STEP 2 — CHUMOI), rồi{" "}
         <code className="text-zinc-400">nen.png</code> cùng thư mục và overlay A nếu có.{" "}
-        <code className="text-zinc-400">wall-composite-A.png</code>: blend theo cấu hình, độ mờ theo <strong>alpha trong file</strong> (không nhân thêm từ JSON). Thiếu file thì bỏ qua overlay. Mỗi lần xong chỉ giữ{" "}
+        <code className="text-zinc-400">wall-composite-A.png</code>: ưu tiên bản trong{" "}
+        <code className="text-zinc-400">data/wall-overlays/</code> (upload API), rồi thư mục overlay; blend theo cấu hình, độ mờ theo{" "}
+        <strong>alpha trong file</strong> (không nhân thêm từ JSON). Thiếu file thì bỏ qua overlay. Mỗi lần xong chỉ giữ{" "}
         <code className="text-zinc-400">wall-composite.jpg</code> — <code className="text-zinc-400">/api/wall-composite/image</code>.
         Log từng bước ghép: <code className="text-zinc-400">/logs/wall-composite-step.log</code> (nếu ghi được vào{" "}
         <code className="text-zinc-400">public/logs</code>) hoặc <code className="text-zinc-400">data/wall-composite-step.log</code>{" "}

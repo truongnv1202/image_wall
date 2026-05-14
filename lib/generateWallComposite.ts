@@ -20,7 +20,7 @@ import { rasterSvgChuPlaceholder } from "@/lib/wallCompositeSvgChu";
 import {
   chuPngSearchPaths,
   nenPngSearchPaths,
-  wallCompositeOverlayAPath,
+  wallCompositeOverlayASearchPaths,
   wallOverlaysDir,
 } from "@/lib/wallOverlayPaths";
 
@@ -31,7 +31,7 @@ const CHUMOI_OUT_REL = path.join("public", "generated", "chumoi.png");
 const GENERATED_DIR = path.join(root, "public", "generated");
 
 const overlaysBase = wallOverlaysDir();
-const OVERLAY_A = wallCompositeOverlayAPath();
+const OVERLAY_A_SEARCH = wallCompositeOverlayASearchPaths();
 const NEN_PNG_PATHS = nenPngSearchPaths();
 const CHU_PNG_PATHS = chuPngSearchPaths();
 
@@ -439,15 +439,18 @@ export async function regenerateWallComposite(): Promise<void> {
       await logWallCompositePublic("step2-skipped-temp", {
         blendMode: wall.graphicBlendMode,
         overlayAlphaFromFileOnly: true,
-        overlayPath: OVERLAY_A,
+        overlayPaths: OVERLAY_A_SEARCH.join(" | "),
       });
       const overlayBlendSkip = cssBlendToSharp(wall.graphicBlendMode) as Blend;
-      const overlayBufSkip = await readOptionalFile(OVERLAY_A);
+      const overlayBufSkip = await readOptionalFirstPath(OVERLAY_A_SEARCH);
       if (!overlayBufSkip) {
-        console.warn("[wallComposite] chế độ tạm (bỏ chữ): thiếu wall-composite-A.png —", OVERLAY_A);
+        console.warn(
+          "[wallComposite] chế độ tạm (bỏ chữ): thiếu wall-composite-A.png — đã thử:",
+          OVERLAY_A_SEARCH.join(" | "),
+        );
         await logWallCompositePublic("step3-overlay-temp-skipped", {
           reason: "missing-wall-composite-A.png",
-          overlayPath: OVERLAY_A,
+          overlayPaths: OVERLAY_A_SEARCH.join(" | "),
         });
       } else {
         const overlaySkip = await sharp(overlayBufSkip)
@@ -499,7 +502,7 @@ export async function regenerateWallComposite(): Promise<void> {
         const chuLayer = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
         stack.push({ input: chuLayer, left: 0, top: 0 });
 
-        const overlayBufNoChumoi = await readOptionalFile(OVERLAY_A);
+        const overlayBufNoChumoi = await readOptionalFirstPath(OVERLAY_A_SEARCH);
         if (overlayBufNoChumoi) {
           const blendFallback = cssBlendToSharp(wall.graphicBlendMode) as Blend;
           const overlayTop = await sharp(overlayBufNoChumoi)
@@ -510,14 +513,14 @@ export async function regenerateWallComposite(): Promise<void> {
           stack.push({ input: overlayTop, left: 0, top: 0, blend: blendFallback });
           overlayAFromNoChumoiFallback = true;
           await logWallCompositePublic("step3-overlay-a-no-chumoi-fallback", {
-            overlayPath: OVERLAY_A,
+            overlayPaths: OVERLAY_A_SEARCH.join(" | "),
             overlayAlphaFromFileOnly: true,
             mMax,
           });
         } else {
           await logWallCompositePublic("step3-overlay-a-no-chumoi-fallback-skipped", {
             reason: "missing-wall-composite-A.png",
-            overlayPath: OVERLAY_A,
+            overlayPaths: OVERLAY_A_SEARCH.join(" | "),
             mMax,
           });
         }
@@ -561,10 +564,15 @@ export async function regenerateWallComposite(): Promise<void> {
 
     const overlayBlend = cssBlendToSharp(wall.graphicBlendMode) as Blend;
     if (!wallCompositeSkipStep2Letter() && !overlayAFromNoChumoiFallback) {
-      const overlayBuf = await readOptionalFile(OVERLAY_A);
+      const overlayBuf = await readOptionalFirstPath(OVERLAY_A_SEARCH);
       if (!overlayBuf) {
-        console.warn("[wallComposite] không có overlay A — bỏ qua (trước đây sẽ lỗi):", OVERLAY_A);
-        await logWallCompositePublic("step3-overlay-skipped", { overlayPath: OVERLAY_A });
+        console.warn(
+          "[wallComposite] không có overlay A — bỏ qua (trước đây sẽ lỗi), đã thử:",
+          OVERLAY_A_SEARCH.join(" | "),
+        );
+        await logWallCompositePublic("step3-overlay-skipped", {
+          overlayPaths: OVERLAY_A_SEARCH.join(" | "),
+        });
       } else {
         const overlay = await sharp(overlayBuf)
           .resize(outW, outH, { fit: "cover", position: "centre" })

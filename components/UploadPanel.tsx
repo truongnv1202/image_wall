@@ -120,7 +120,7 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
       const h = data.height ?? "?";
       setOverlayHint({
         kind: "ok",
-        text: `Đã ghi wall-composite-A.png (${w}×${h}px, giữ nguyên kích thước pixel). Độ mờ/blend vẫn theo wall-text — không đổi qua bước này.`,
+        text: `Đã ghi data/wall-overlays/wall-composite-A.png (${w}×${h}px). Blend theo wall-text; độ mờ theo alpha file.`,
       });
       if (overlayInputRef.current) overlayInputRef.current.value = "";
       setOverlayFileName(null);
@@ -144,11 +144,13 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
       <div className="flex flex-col gap-2 border-t border-zinc-800 pt-3">
         <span className="text-xs font-medium text-zinc-400">Lớp phủ ghép tường (`wall-composite-A.png`)</span>
         <p className="text-xs text-zinc-600">
-          <code className="text-zinc-500">POST /api/upload-wall-overlay</code> — ghi vào thư mục overlay (ví dụ{" "}
-          <code className="text-zinc-500">WALL_OVERLAYS_DIR</code> / <code className="text-zinc-500">public/wall-overlays</code>
-          ). File được lưu <strong className="text-zinc-400">cùng width×height</strong> (không resize).{" "}
+          <code className="text-zinc-500">POST /api/upload-wall-overlay</code> — ghi{" "}
+          <code className="text-zinc-500">data/wall-overlays/wall-composite-A.png</code> (tránh volume{" "}
+          <code className="text-zinc-500">public/wall-overlays</code> chỉ đọc trong Docker). Ghép tường đọc file này{" "}
+          <strong className="text-zinc-400">trước</strong> bản trong thư mục overlay image. File giữ nguyên width×height pixel khi lưu.{" "}
           <strong className="text-zinc-400">Không</strong> sửa kích thước khung ghép trong{" "}
-          <code className="text-zinc-500">wall-text.json</code>. Độ mờ lớp phủ chỉ do <strong>alpha ảnh upload</strong> — không chỉnh qua cấu hình.
+          <code className="text-zinc-500">wall-text.json</code>. Độ mờ lớp phủ chỉ do{" "}
+          <strong>alpha ảnh upload</strong> — không chỉnh qua cấu hình.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <input

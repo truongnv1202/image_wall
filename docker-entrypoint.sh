@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 # Volume Docker thường root:root; user nextjs (1001) phải ghi được /app/data và /app/public/uploads.
-mkdir -p /app/data /app/public/uploads /app/public/generated /app/public/logs
+mkdir -p /app/data /app/data/wall-overlays /app/public/uploads /app/public/generated /app/public/logs
 
 if [ "$(id -u)" = 0 ]; then
   # Gán owner; volume có thể từ chối chown → vẫn chmod để process (gosu nextjs) ghi được.

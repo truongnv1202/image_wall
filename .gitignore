@@ -28,6 +28,7 @@
 /public/logs/*.log
 /data/wall-composite-step.log
 /data/request-access.log
+/data/wall-overlays/wall-composite-A.png
 
 # log mỗi HTTP request (middleware → Node API)
 /public/logs/request-access.log

@@ -1,11 +1,12 @@
 import { mkdir, writeFile } from "fs/promises";
+import path from "path";
 import { NextResponse } from "next/server";
 import sharp from "sharp";
 
 import { rejectWithoutUploadToken } from "@/lib/uploadAuth";
 import { looksLikeHeicOrHeif } from "@/lib/sniffImageFormat";
 import { normalizeUploadTokenSegment } from "@/lib/uploadPageToken";
-import { wallCompositeOverlayAPath, wallOverlaysDir } from "@/lib/wallOverlayPaths";
+import { wallCompositeOverlayADataPath } from "@/lib/wallOverlayPaths";
 
 const MAX_BYTES = 25 * 1024 * 1024;
 const MAX_EDGE = 8192;
@@ -23,9 +24,9 @@ function firstFormUploadToken(form: FormData): string | null {
 }
 
 /**
- * Upload `wall-composite-A.png`: chỉ ghi đè file trong thư mục overlay, **không** resize,
- * **không** đổi `graphicOverlayOpacity` / kích thước ghép trong `wall-text.json` (độ mờ overlay chỉ từ alpha file).
- * Ảnh được chuẩn hoá sang PNG (cùng width×height pixel).
+ * Upload lớp phủ `wall-composite-A.png`: ghi `data/wall-overlays/...` (tránh EROFS khi volume `public/wall-overlays` chỉ đọc).
+ * Không resize; không đổi `wall-text.json`; độ mờ overlay chỉ từ alpha file.
+ * Ảnh chuẩn hoá sang PNG (giữ width×height pixel).
  */
 export async function POST(request: Request) {
   try {
@@ -66,8 +67,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const outAbs = wallCompositeOverlayAPath();
-    await mkdir(wallOverlaysDir(), { recursive: true });
+    const outAbs = wallCompositeOverlayADataPath();
+    await mkdir(path.dirname(outAbs), { recursive: true });
     const pngBuf = await sharp(input).png().toBuffer();
     await writeFile(outAbs, pngBuf);
 
@@ -78,6 +79,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       file: "wall-composite-A.png",
+      storage: "data/wall-overlays/wall-composite-A.png",
       width: w,
       height: h,
     });
