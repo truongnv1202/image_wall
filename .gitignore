@@ -31,6 +31,7 @@
 /data/wall-composite-meta.json
 /data/request-access.log
 /data/wall-overlays/wall-composite-A.png
+/data/wall-overlays/wall-composite-B.png
 
 # log mỗi HTTP request (middleware → Node API)
 /public/logs/request-access.log

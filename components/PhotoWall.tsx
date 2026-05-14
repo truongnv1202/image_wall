@@ -99,6 +99,10 @@ export function PhotoWall() {
     refreshInterval: POLL_MS,
     revalidateOnFocus: true,
   });
+  const { data: overlayBMeta } = useSWR<WallOverlayMeta>("/api/wall-overlay-b", fetcherOverlayMeta, {
+    refreshInterval: POLL_MS,
+    revalidateOnFocus: true,
+  });
 
   /** Chỉ ảnh gửi qua API/upload (`/uploads/...`) — không dùng URL mẫu. */
   const uploadPool = useMemo(() => {
@@ -321,6 +325,28 @@ export function PhotoWall() {
               width={overlayMeta.width && overlayMeta.height ? overlayMeta.width : undefined}
               height={overlayMeta.width && overlayMeta.height ? overlayMeta.height : undefined}
               className="h-full w-full object-contain object-center opacity-100"
+              decoding="async"
+              draggable={false}
+            />
+          </div>
+        ) : null}
+
+        {overlayBMeta?.exists === true && overlayBMeta.version > 0 ? (
+          <div
+            className="pointer-events-none absolute inset-0 z-[55] min-h-0 min-w-0"
+            aria-hidden
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/wall-overlay-b/image?v=${overlayBMeta.version}`}
+              alt=""
+              width={overlayBMeta.width && overlayBMeta.height ? overlayBMeta.width : undefined}
+              height={overlayBMeta.width && overlayBMeta.height ? overlayBMeta.height : undefined}
+              className="h-full w-full object-contain object-center"
+              style={{
+                mixBlendMode: wallCfg?.overlayBBlendMode ?? "normal",
+                opacity: wallCfg?.overlayBOpacity ?? 1,
+              }}
               decoding="async"
               draggable={false}
             />

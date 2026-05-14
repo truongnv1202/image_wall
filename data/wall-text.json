@@ -9,5 +9,7 @@
   "gridTileWidthPx": 54,
   "gridTileHeightPx": 72,
   "graphicBlendMode": "hard-light",
-  "graphicOverlayOpacity": 0.9
+  "graphicOverlayOpacity": 0.9,
+  "overlayBBlendMode": "normal",
+  "overlayBOpacity": 1
 }

@@ -28,6 +28,10 @@ export type WallTextPayload = {
   graphicBlendMode: WallGraphicBlendMode;
   /** Lưu trong JSON; độ mờ overlay PNG chủ yếu từ alpha file khi hiển thị. */
   graphicOverlayOpacity: number;
+  /** `mix-blend-mode` CSS cho lớp phủ B trên `/wall` (trên phủ A). */
+  overlayBBlendMode: WallGraphicBlendMode;
+  /** Opacity toàn lớp B (0–1), nhân cùng alpha trong PNG. */
+  overlayBOpacity: number;
 };
 
 const DATA_PATH = path.join(process.cwd(), "data", "wall-text.json");
@@ -42,6 +46,8 @@ const DEFAULT: WallTextPayload = {
   gridTileHeightPx: 72,
   graphicBlendMode: WALL_GRAPHIC_DEFAULT_BLEND,
   graphicOverlayOpacity: WALL_GRAPHIC_OVERLAY_OPACITY,
+  overlayBBlendMode: "normal",
+  overlayBOpacity: 1,
 };
 
 export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
@@ -95,6 +101,16 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
     WALL_GRAPHIC_OVERLAY_OPACITY,
   );
 
+  const overlayBBlendMode = coerceWallGraphicBlendMode(
+    o.overlayBBlendMode,
+    DEFAULT.overlayBBlendMode,
+  );
+  let overlayBOpacity =
+    typeof o.overlayBOpacity === "number" && Number.isFinite(o.overlayBOpacity)
+      ? o.overlayBOpacity
+      : DEFAULT.overlayBOpacity;
+  overlayBOpacity = Math.min(1, Math.max(0, overlayBOpacity));
+
   return {
     phrases,
     rotateIntervalMs,
@@ -105,6 +121,8 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
     gridTileHeightPx,
     graphicBlendMode,
     graphicOverlayOpacity,
+    overlayBBlendMode,
+    overlayBOpacity,
   };
 }
 

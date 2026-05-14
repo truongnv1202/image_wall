@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import useSWR from "swr";
 
 import type { WallTextPayload } from "@/lib/wallTextStore";
-import { WALL_GRAPHIC_DEFAULT_BLEND, WALL_GRAPHIC_OVERLAY_OPACITY } from "@/lib/wallGraphicUrls";
+import {
+  WALL_GRAPHIC_BLEND_MODE_CHOICES,
+  WALL_GRAPHIC_DEFAULT_BLEND,
+  WALL_GRAPHIC_OVERLAY_OPACITY,
+  type WallGraphicBlendMode,
+} from "@/lib/wallGraphicUrls";
 
 const fetcher = (url: string) =>
   fetch(url).then((r) => {
@@ -14,6 +19,17 @@ const fetcher = (url: string) =>
 
 const MAX_PHRASES = 24;
 const MAX_LEN = 400;
+
+const OVERLAY_B_BLEND_UI_EXCLUDE = new Set([
+  "inherit",
+  "initial",
+  "revert",
+  "revert-layer",
+  "unset",
+]);
+const OVERLAY_B_BLEND_OPTIONS = WALL_GRAPHIC_BLEND_MODE_CHOICES.filter(
+  (m) => !OVERLAY_B_BLEND_UI_EXCLUDE.has(m),
+) as readonly WallGraphicBlendMode[];
 
 type Props = { apiUploadToken: string };
 
@@ -26,6 +42,8 @@ export function WallTextPanel({ apiUploadToken }: Props) {
   const [gridRows, setGridRows] = useState(60);
   const [gridTileWidthPx, setGridTileWidthPx] = useState(54);
   const [gridTileHeightPx, setGridTileHeightPx] = useState(72);
+  const [overlayBBlendMode, setOverlayBBlendMode] = useState<WallGraphicBlendMode>("normal");
+  const [overlayBOpacityPct, setOverlayBOpacityPct] = useState(100);
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -38,6 +56,8 @@ export function WallTextPanel({ apiUploadToken }: Props) {
     setGridRows(data.gridRows ?? 60);
     setGridTileWidthPx(data.gridTileWidthPx ?? 54);
     setGridTileHeightPx(data.gridTileHeightPx ?? 72);
+    setOverlayBBlendMode(data.overlayBBlendMode ?? "normal");
+    setOverlayBOpacityPct(Math.round((data.overlayBOpacity ?? 1) * 100));
   }, [data]);
 
   async function save() {
@@ -58,6 +78,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       const nextTileH = Math.min(384, Math.max(8, Math.floor(Number(gridTileHeightPx)) || 72));
       const graphicBlendMode = data?.graphicBlendMode ?? WALL_GRAPHIC_DEFAULT_BLEND;
       const graphicOverlayOpacity = data?.graphicOverlayOpacity ?? WALL_GRAPHIC_OVERLAY_OPACITY;
+      const nextOverlayBOpacity = Math.min(1, Math.max(0, (Number(overlayBOpacityPct) || 0) / 100));
       const wallTextUrl = `/api/wall-text?token=${encodeURIComponent(apiUploadToken)}`;
       const res = await fetch(wallTextUrl, {
         method: "POST",
@@ -75,6 +96,8 @@ export function WallTextPanel({ apiUploadToken }: Props) {
           gridTileHeightPx: nextTileH,
           graphicBlendMode,
           graphicOverlayOpacity,
+          overlayBBlendMode,
+          overlayBOpacity: nextOverlayBOpacity,
         } satisfies WallTextPayload),
       });
       const body = (await res.json().catch(() => ({}))) as WallTextPayload & { error?: string };
@@ -162,6 +185,42 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         </strong>
         ; nên giữ tỷ lệ gần 3×4 (dọc). Ảnh vừa khung, không kéo méo (có thể có viền đen nếu ảnh không đúng tỷ lệ). Thiếu ảnh so với số ô thì lặp theo thứ tự, ảnh mới vẫn ở đầu danh sách.
       </p>
+
+      <div className="border-t border-zinc-800 pt-3 text-xs font-medium text-zinc-400">
+        Lớp phủ B trên <code className="text-zinc-500">/wall</code>
+      </div>
+      <p className="text-xs text-zinc-500">
+        Blend và độ mờ áp dụng lên ảnh <code className="text-zinc-400">wall-composite-B.png</code> (trên lớp A). Alpha trong PNG vẫn có hiệu lực; opacity chỉnh thêm hệ số toàn lớp.
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
+          <span>Blend mode (CSS)</span>
+          <select
+            value={overlayBBlendMode}
+            onChange={(e) => setOverlayBBlendMode(e.target.value as WallGraphicBlendMode)}
+            className="max-w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+          >
+            {OVERLAY_B_BLEND_OPTIONS.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
+          <span>Opacity lớp B (0–100%)</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={Number.isFinite(overlayBOpacityPct) ? overlayBOpacityPct : 100}
+            onChange={(e) => setOverlayBOpacityPct(Number(e.target.value))}
+            className="max-w-full accent-sky-500"
+          />
+          <span className="text-zinc-500">{Number.isFinite(overlayBOpacityPct) ? overlayBOpacityPct : 100}%</span>
+        </label>
+      </div>
 
       <div className="border-t border-zinc-800 pt-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
         Câu chữ (watermark giữa tường ảnh)

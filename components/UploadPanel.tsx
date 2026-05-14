@@ -17,22 +17,31 @@ type UploadJson = {
 type OverlayUploadJson = {
   error?: string;
   ok?: boolean;
+  layer?: string;
   width?: number;
   height?: number;
   file?: string;
+  deleted?: boolean;
 };
 
 export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
   const tileInputId = useId();
-  const overlayInputId = useId();
+  const overlayAInputId = useId();
+  const overlayBInputId = useId();
   const tileInputRef = useRef<HTMLInputElement>(null);
-  const overlayInputRef = useRef<HTMLInputElement>(null);
+  const overlayAInputRef = useRef<HTMLInputElement>(null);
+  const overlayBInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
-  const [overlayFileName, setOverlayFileName] = useState<string | null>(null);
+  const [overlayAFileName, setOverlayAFileName] = useState<string | null>(null);
+  const [overlayBFileName, setOverlayBFileName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [overlayBusy, setOverlayBusy] = useState(false);
+  const [overlayABusy, setOverlayABusy] = useState(false);
+  const [overlayBBusy, setOverlayBBusy] = useState(false);
+  const [overlayADeleteBusy, setOverlayADeleteBusy] = useState(false);
+  const [overlayBDeleteBusy, setOverlayBDeleteBusy] = useState(false);
   const [hint, setHint] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
-  const [overlayHint, setOverlayHint] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [overlayAHint, setOverlayAHint] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [overlayBHint, setOverlayBHint] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   async function submit() {
     const token = apiUploadToken?.trim();
@@ -85,49 +94,97 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
     }
   }
 
-  async function submitOverlay() {
+  async function submitOverlayLayer(layer: "a" | "b") {
     const token = apiUploadToken?.trim();
+    const setHint = layer === "a" ? setOverlayAHint : setOverlayBHint;
+    const setBusy = layer === "a" ? setOverlayABusy : setOverlayBBusy;
+    const inputRef = layer === "a" ? overlayAInputRef : overlayBInputRef;
+    const setFileLabel = layer === "a" ? setOverlayAFileName : setOverlayBFileName;
+
     if (!token) {
-      setOverlayHint({ kind: "err", text: "Thiếu token — chỉ dùng trang /upload/<token>." });
+      setHint({ kind: "err", text: "Thiếu token — chỉ dùng trang /upload/<token>." });
       return;
     }
-    const file = overlayInputRef.current?.files?.[0];
+    const file = inputRef.current?.files?.[0];
     if (!file) {
-      setOverlayHint({ kind: "err", text: "Chọn file lớp phủ (PNG/JPG/WebP/GIF)." });
+      setHint({ kind: "err", text: "Chọn file lớp phủ (PNG/JPG/WebP/GIF)." });
       return;
     }
 
     const fd = new FormData();
     fd.append("file", file);
     fd.append("token", token);
+    fd.append("layer", layer);
 
-    setOverlayBusy(true);
-    setOverlayHint(null);
+    setBusy(true);
+    setHint(null);
     try {
       const res = await fetch("/api/upload-wall-overlay", { method: "POST", body: fd });
       let data: OverlayUploadJson;
       try {
         data = (await res.json()) as OverlayUploadJson;
       } catch {
-        setOverlayHint({ kind: "err", text: `HTTP ${res.status} — phản hồi không phải JSON.` });
+        setHint({ kind: "err", text: `HTTP ${res.status} — phản hồi không phải JSON.` });
         return;
       }
       if (!res.ok) {
-        setOverlayHint({ kind: "err", text: data.error || `HTTP ${res.status}` });
+        setHint({ kind: "err", text: data.error || `HTTP ${res.status}` });
         return;
       }
       const w = data.width ?? "?";
       const h = data.height ?? "?";
-      setOverlayHint({
+      const name = data.file ?? (layer === "b" ? "wall-composite-B.png" : "wall-composite-A.png");
+      setHint({
         kind: "ok",
-        text: `Đã ghi data/wall-overlays/wall-composite-A.png (${w}×${h}px). Độ mờ theo alpha file.`,
+        text: `Đã ghi data/wall-overlays/${name} (${w}×${h}px). Alpha giữ nguyên trong file.`,
       });
-      if (overlayInputRef.current) overlayInputRef.current.value = "";
-      setOverlayFileName(null);
+      if (inputRef.current) inputRef.current.value = "";
+      setFileLabel(null);
     } catch (e) {
-      setOverlayHint({ kind: "err", text: e instanceof Error ? e.message : "Lỗi mạng" });
+      setHint({ kind: "err", text: e instanceof Error ? e.message : "Lỗi mạng" });
     } finally {
-      setOverlayBusy(false);
+      setBusy(false);
+    }
+  }
+
+  async function deleteOverlayLayer(layer: "a" | "b") {
+    const token = apiUploadToken?.trim();
+    const setHint = layer === "a" ? setOverlayAHint : setOverlayBHint;
+    const setBusy = layer === "a" ? setOverlayADeleteBusy : setOverlayBDeleteBusy;
+    if (!token) {
+      setHint({ kind: "err", text: "Thiếu token — chỉ dùng trang /upload/<token>." });
+      return;
+    }
+    setBusy(true);
+    setHint(null);
+    try {
+      const q = new URLSearchParams({ token, layer });
+      const res = await fetch(`/api/upload-wall-overlay?${q}`, {
+        method: "DELETE",
+        headers: { "x-upload-token": token },
+      });
+      let data: OverlayUploadJson;
+      try {
+        data = (await res.json()) as OverlayUploadJson;
+      } catch {
+        setHint({ kind: "err", text: `HTTP ${res.status} — phản hồi không phải JSON.` });
+        return;
+      }
+      if (!res.ok) {
+        setHint({ kind: "err", text: data.error || `HTTP ${res.status}` });
+        return;
+      }
+      const deleted = data.deleted === true;
+      setHint({
+        kind: "ok",
+        text: deleted
+          ? `Đã xóa lớp phủ ${layer.toUpperCase()} (data/wall-overlays/wall-composite-${layer.toUpperCase()}.png).`
+          : "Không còn file trên đĩa (đã coi như xóa xong).",
+      });
+    } catch (e) {
+      setHint({ kind: "err", text: e instanceof Error ? e.message : "Lỗi mạng" });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -141,57 +198,121 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
         mới hiệu ứng giữa màn rồi thu về góc.
       </p>
 
-      <div className="flex flex-col gap-2 border-t border-zinc-800 pt-3">
-        <span className="text-xs font-medium text-zinc-400">Lớp phủ ghép tường (`wall-composite-A.png`)</span>
-        <p className="text-xs text-zinc-600">
-          <code className="text-zinc-500">POST /api/upload-wall-overlay</code> — ghi{" "}
-          <code className="text-zinc-500">data/wall-overlays/wall-composite-A.png</code> (tránh volume{" "}
-          <code className="text-zinc-500">public/wall-overlays</code> chỉ đọc trong Docker). Trang{" "}
-          <code className="text-zinc-500">/wall</code> hiển thị file này{" "}
-          <strong className="text-zinc-400">trước</strong> bản trong thư mục overlay image. File giữ nguyên width×height pixel khi lưu.{" "}
-          <strong className="text-zinc-400">Không</strong> sửa kích thước khung ghép trong{" "}
-          <code className="text-zinc-500">wall-text.json</code>. Độ mờ lớp phủ chỉ do{" "}
-          <strong>alpha ảnh upload</strong> — không chỉnh qua cấu hình.
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            ref={overlayInputRef}
-            id={overlayInputId}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
-            className="sr-only"
-            onChange={() => {
-              const f = overlayInputRef.current?.files?.[0];
-              setOverlayFileName(f ? f.name : null);
-              setOverlayHint(null);
-            }}
-          />
-          <label
-            htmlFor={overlayInputId}
-            className="cursor-pointer rounded-lg border border-dashed border-amber-800/60 px-3 py-2 text-xs text-amber-100/90 hover:bg-zinc-800"
-          >
-            {overlayFileName ? `Lớp phủ: ${overlayFileName}` : "Chọn file lớp phủ…"}
-          </label>
-          <button
-            type="button"
-            disabled={overlayBusy}
-            className="rounded-lg border border-amber-700/80 bg-amber-950/50 px-4 py-2 text-xs font-medium text-amber-100 hover:bg-amber-900/40 disabled:opacity-50"
-            onClick={() => void submitOverlay()}
-          >
-            {overlayBusy ? "Đang gửi…" : "Upload lớp phủ"}
-          </button>
-        </div>
-        {overlayHint ? (
-          <p
-            className={
-              overlayHint.kind === "ok"
-                ? "text-xs text-emerald-400/95"
-                : "text-xs text-rose-400/95"
-            }
-          >
-            {overlayHint.text}
+      <div className="flex flex-col gap-4 border-t border-zinc-800 pt-3">
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-medium text-zinc-400">
+            Lớp phủ 1 — <code className="text-zinc-500">wall-composite-A.png</code> (dưới)
+          </span>
+          <p className="text-xs text-zinc-600">
+            <code className="text-zinc-500">POST /api/upload-wall-overlay</code> với field{" "}
+            <code className="text-zinc-500">layer=a</code> (mặc định). Trên <code className="text-zinc-500">/wall</code>{" "}
+            hiển thị responsive, alpha từ file. <code className="text-zinc-500">DELETE ?layer=a&amp;token=…</code> để xóa.
           </p>
-        ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={overlayAInputRef}
+              id={overlayAInputId}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+              className="sr-only"
+              onChange={() => {
+                const f = overlayAInputRef.current?.files?.[0];
+                setOverlayAFileName(f ? f.name : null);
+                setOverlayAHint(null);
+              }}
+            />
+            <label
+              htmlFor={overlayAInputId}
+              className="cursor-pointer rounded-lg border border-dashed border-amber-800/60 px-3 py-2 text-xs text-amber-100/90 hover:bg-zinc-800"
+            >
+              {overlayAFileName ? `Phủ 1: ${overlayAFileName}` : "Chọn file lớp phủ 1…"}
+            </label>
+            <button
+              type="button"
+              disabled={overlayABusy}
+              className="rounded-lg border border-amber-700/80 bg-amber-950/50 px-4 py-2 text-xs font-medium text-amber-100 hover:bg-amber-900/40 disabled:opacity-50"
+              onClick={() => void submitOverlayLayer("a")}
+            >
+              {overlayABusy ? "Đang gửi…" : "Upload phủ 1"}
+            </button>
+            <button
+              type="button"
+              disabled={overlayADeleteBusy}
+              className="rounded-lg border border-zinc-600 px-3 py-2 text-xs text-zinc-400 hover:border-rose-800/60 hover:bg-rose-950/30 hover:text-rose-200 disabled:opacity-50"
+              onClick={() => void deleteOverlayLayer("a")}
+            >
+              {overlayADeleteBusy ? "Đang xóa…" : "Xóa phủ 1"}
+            </button>
+          </div>
+          {overlayAHint ? (
+            <p
+              className={
+                overlayAHint.kind === "ok"
+                  ? "text-xs text-emerald-400/95"
+                  : "text-xs text-rose-400/95"
+              }
+            >
+              {overlayAHint.text}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col gap-2 border-t border-zinc-800/80 pt-3">
+          <span className="text-xs font-medium text-zinc-400">
+            Lớp phủ 2 — <code className="text-zinc-500">wall-composite-B.png</code> (trên phủ 1)
+          </span>
+          <p className="text-xs text-zinc-600">
+            Cùng API với field <code className="text-zinc-500">layer=b</code>. Alpha giữ nguyên; trên tường nằm trên
+            lớp 1. <code className="text-zinc-500">DELETE ?layer=b&amp;token=…</code> để gỡ.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={overlayBInputRef}
+              id={overlayBInputId}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+              className="sr-only"
+              onChange={() => {
+                const f = overlayBInputRef.current?.files?.[0];
+                setOverlayBFileName(f ? f.name : null);
+                setOverlayBHint(null);
+              }}
+            />
+            <label
+              htmlFor={overlayBInputId}
+              className="cursor-pointer rounded-lg border border-dashed border-sky-800/60 px-3 py-2 text-xs text-sky-100/90 hover:bg-zinc-800"
+            >
+              {overlayBFileName ? `Phủ 2: ${overlayBFileName}` : "Chọn file lớp phủ 2…"}
+            </label>
+            <button
+              type="button"
+              disabled={overlayBBusy}
+              className="rounded-lg border border-sky-700/80 bg-sky-950/50 px-4 py-2 text-xs font-medium text-sky-100 hover:bg-sky-900/40 disabled:opacity-50"
+              onClick={() => void submitOverlayLayer("b")}
+            >
+              {overlayBBusy ? "Đang gửi…" : "Upload phủ 2"}
+            </button>
+            <button
+              type="button"
+              disabled={overlayBDeleteBusy}
+              className="rounded-lg border border-zinc-600 px-3 py-2 text-xs text-zinc-400 hover:border-rose-800/60 hover:bg-rose-950/30 hover:text-rose-200 disabled:opacity-50"
+              onClick={() => void deleteOverlayLayer("b")}
+            >
+              {overlayBDeleteBusy ? "Đang xóa…" : "Xóa phủ 2"}
+            </button>
+          </div>
+          {overlayBHint ? (
+            <p
+              className={
+                overlayBHint.kind === "ok"
+                  ? "text-xs text-emerald-400/95"
+                  : "text-xs text-rose-400/95"
+              }
+            >
+              {overlayBHint.text}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex flex-col gap-2 border-t border-zinc-800 pt-3">
@@ -233,9 +354,7 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
         {hint ? (
           <p
             className={
-              hint.kind === "ok"
-                ? "text-xs text-emerald-400/95"
-                : "text-xs text-rose-400/95"
+              hint.kind === "ok" ? "text-xs text-emerald-400/95" : "text-xs text-rose-400/95"
             }
           >
             {hint.text}
