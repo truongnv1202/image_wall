@@ -27,6 +27,10 @@
 # log ghép tường (tạo runtime trong public/logs hoặc data/)
 /public/logs/*.log
 /data/wall-composite-step.log
+/data/request-access.log
+
+# log mỗi HTTP request (middleware → Node API)
+/public/logs/request-access.log
 
 # ảnh debug CHUMOI (mỗi lần ghép tường thành công nhánh mask đủ mạnh)
 /public/generated/chumoi.png
