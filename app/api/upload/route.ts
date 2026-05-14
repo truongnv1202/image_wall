@@ -75,10 +75,6 @@ export async function POST(request: Request) {
     const publicUrl = `/uploads/${name}`;
     const data = await prependImageUrl(publicUrl);
 
-    void import("@/lib/generateWallComposite")
-      .then(({ regenerateWallComposite }) => regenerateWallComposite())
-      .catch((e) => console.error("[upload] regenerateWallComposite:", e));
-
     return NextResponse.json({ url: publicUrl, ...data });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Write failed";

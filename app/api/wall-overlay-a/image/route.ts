@@ -1,33 +1,31 @@
 import { promises as fs } from "fs";
-import path from "path";
 
 import { NextResponse } from "next/server";
 
-import { readWallCompositeMeta } from "@/lib/wallCompositeMeta";
+import { resolveWallCompositeOverlayAFile } from "@/lib/wallOverlayPaths";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const FILE = path.join(process.cwd(), "public", "generated", "wall-composite.jpg");
-
-/**
- * Trả về file JPEG đã ghép — đi qua `/api/` để proxy (Nginx) luôn forward được,
- * khác với `/generated/...` có thể không trỏ vào Next.
- */
 export async function GET(request: Request) {
+  const abs = await resolveWallCompositeOverlayAFile();
+  if (!abs) {
+    return new NextResponse(null, { status: 404 });
+  }
+
   try {
-    const buf = await fs.readFile(FILE);
+    const buf = await fs.readFile(abs);
     if (buf.length === 0) {
       return new NextResponse(null, { status: 404 });
     }
-    const meta = await readWallCompositeMeta();
+    const st = await fs.stat(abs);
     const v = new URL(request.url).searchParams.get("v");
     const cacheBusted = v != null && /^\d+$/.test(v);
     return new NextResponse(buf, {
       status: 200,
       headers: {
-        "Content-Type": "image/jpeg",
-        "X-Wall-Composite-Version": String(meta.version),
+        "Content-Type": "image/png",
+        "X-Wall-Overlay-A-Mtime": String(Math.floor(st.mtimeMs)),
         ...(cacheBusted
           ? { "Cache-Control": "public, max-age=86400, immutable" }
           : { "Cache-Control": "no-store, max-age=0" }),

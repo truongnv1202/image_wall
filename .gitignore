@@ -27,6 +27,8 @@
 # log ghép tường (tạo runtime trong public/logs hoặc data/)
 /public/logs/*.log
 /data/wall-composite-step.log
+/data/wall-overlay-diag.log
+/data/wall-composite-meta.json
 /data/request-access.log
 /data/wall-overlays/wall-composite-A.png
 

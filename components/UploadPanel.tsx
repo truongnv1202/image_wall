@@ -120,7 +120,7 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
       const h = data.height ?? "?";
       setOverlayHint({
         kind: "ok",
-        text: `Đã ghi data/wall-overlays/wall-composite-A.png (${w}×${h}px). Blend theo wall-text; độ mờ theo alpha file.`,
+        text: `Đã ghi data/wall-overlays/wall-composite-A.png (${w}×${h}px). Độ mờ theo alpha file.`,
       });
       if (overlayInputRef.current) overlayInputRef.current.value = "";
       setOverlayFileName(null);
@@ -146,7 +146,8 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
         <p className="text-xs text-zinc-600">
           <code className="text-zinc-500">POST /api/upload-wall-overlay</code> — ghi{" "}
           <code className="text-zinc-500">data/wall-overlays/wall-composite-A.png</code> (tránh volume{" "}
-          <code className="text-zinc-500">public/wall-overlays</code> chỉ đọc trong Docker). Ghép tường đọc file này{" "}
+          <code className="text-zinc-500">public/wall-overlays</code> chỉ đọc trong Docker). Trang{" "}
+          <code className="text-zinc-500">/wall</code> hiển thị file này{" "}
           <strong className="text-zinc-400">trước</strong> bản trong thư mục overlay image. File giữ nguyên width×height pixel khi lưu.{" "}
           <strong className="text-zinc-400">Không</strong> sửa kích thước khung ghép trong{" "}
           <code className="text-zinc-500">wall-text.json</code>. Độ mờ lớp phủ chỉ do{" "}

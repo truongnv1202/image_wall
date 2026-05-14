@@ -72,10 +72,6 @@ export async function POST(request: Request) {
     const pngBuf = await sharp(input).png().toBuffer();
     await writeFile(outAbs, pngBuf);
 
-    void import("@/lib/generateWallComposite")
-      .then(({ regenerateWallComposite }) => regenerateWallComposite())
-      .catch((e) => console.error("[upload-wall-overlay] regenerateWallComposite:", e));
-
     return NextResponse.json({
       ok: true,
       file: "wall-composite-A.png",

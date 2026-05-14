@@ -24,23 +24,10 @@ export type WallTextPayload = {
   /** Kích thước mỗi ô lưới trên tường (px) — mặc định 54×72 (3:4); tối thiểu 6×8. */
   gridTileWidthPx: number;
   gridTileHeightPx: number;
-  /** `mix-blend-mode` cho lớp `wall-composite-A.png` (Sharp). */
+  /** `mix-blend-mode` cho lớp phủ PNG (dự phòng / tương thích cấu hình). */
   graphicBlendMode: WallGraphicBlendMode;
-  /**
-   * Lưu trong JSON để tương thích cũ; **không** dùng khi ghép overlay A — độ trong suốt lấy từ kênh alpha của file upload.
-   */
+  /** Lưu trong JSON; độ mờ overlay PNG chủ yếu từ alpha file khi hiển thị. */
   graphicOverlayOpacity: number;
-  /** Chu kỳ ghép lại ảnh tường + xáo ô lưới server-side (ms), mặc định 2 phút. */
-  compositeIntervalMs: number;
-  /** Kích thước ảnh ghép xuất ra (pixel), ~16:9. */
-  compositeOutWidth: number;
-  compositeOutHeight: number;
-  /** Thời gian crossfade khi tường đổi sang ảnh ghép mới (ms). */
-  wallCompositeFadeMs: number;
-  /** Độ hiện lưới ảnh ở nền ngoài vùng chữ (0–0.5) — ghost mosaic. */
-  compositeBgMosaicOpacity: number;
-  /** Đẩy sáng vùng chữ (0–0.55): khuếch đại hướng về trắng theo mask. */
-  compositeTextBrighten: number;
 };
 
 const DATA_PATH = path.join(process.cwd(), "data", "wall-text.json");
@@ -55,13 +42,6 @@ const DEFAULT: WallTextPayload = {
   gridTileHeightPx: 72,
   graphicBlendMode: WALL_GRAPHIC_DEFAULT_BLEND,
   graphicOverlayOpacity: WALL_GRAPHIC_OVERLAY_OPACITY,
-  /** Chu kỳ ghép lại ảnh tường + xáo vị trí ô lưới (ms), mặc định 2 phút. */
-  compositeIntervalMs: 120_000,
-  compositeOutWidth: 1920,
-  compositeOutHeight: 1080,
-  wallCompositeFadeMs: 900,
-  compositeBgMosaicOpacity: 0.08,
-  compositeTextBrighten: 0.28,
 };
 
 export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
@@ -115,42 +95,6 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
     WALL_GRAPHIC_OVERLAY_OPACITY,
   );
 
-  let compositeIntervalMs =
-    typeof o.compositeIntervalMs === "number" && Number.isFinite(o.compositeIntervalMs)
-      ? Math.floor(o.compositeIntervalMs)
-      : DEFAULT.compositeIntervalMs;
-  compositeIntervalMs = Math.min(Math.max(60_000, compositeIntervalMs), 3_600_000);
-
-  let compositeOutWidth =
-    typeof o.compositeOutWidth === "number" && Number.isFinite(o.compositeOutWidth)
-      ? Math.floor(o.compositeOutWidth)
-      : DEFAULT.compositeOutWidth;
-  compositeOutWidth = Math.min(Math.max(640, compositeOutWidth), 3840);
-
-  let compositeOutHeight =
-    typeof o.compositeOutHeight === "number" && Number.isFinite(o.compositeOutHeight)
-      ? Math.floor(o.compositeOutHeight)
-      : DEFAULT.compositeOutHeight;
-  compositeOutHeight = Math.min(Math.max(360, compositeOutHeight), 2160);
-
-  let wallCompositeFadeMs =
-    typeof o.wallCompositeFadeMs === "number" && Number.isFinite(o.wallCompositeFadeMs)
-      ? Math.floor(o.wallCompositeFadeMs)
-      : DEFAULT.wallCompositeFadeMs;
-  wallCompositeFadeMs = Math.min(Math.max(200, wallCompositeFadeMs), 5000);
-
-  let compositeBgMosaicOpacity =
-    typeof o.compositeBgMosaicOpacity === "number" && Number.isFinite(o.compositeBgMosaicOpacity)
-      ? o.compositeBgMosaicOpacity
-      : DEFAULT.compositeBgMosaicOpacity;
-  compositeBgMosaicOpacity = Math.min(Math.max(0, compositeBgMosaicOpacity), 0.5);
-
-  let compositeTextBrighten =
-    typeof o.compositeTextBrighten === "number" && Number.isFinite(o.compositeTextBrighten)
-      ? o.compositeTextBrighten
-      : DEFAULT.compositeTextBrighten;
-  compositeTextBrighten = Math.min(Math.max(0, compositeTextBrighten), 0.55);
-
   return {
     phrases,
     rotateIntervalMs,
@@ -161,12 +105,6 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
     gridTileHeightPx,
     graphicBlendMode,
     graphicOverlayOpacity,
-    compositeIntervalMs,
-    compositeOutWidth,
-    compositeOutHeight,
-    wallCompositeFadeMs,
-    compositeBgMosaicOpacity,
-    compositeTextBrighten,
   };
 }
 

@@ -22,6 +22,19 @@ const fetcherWallText = (url: string) =>
     return r.json() as Promise<WallTextPayload>;
   });
 
+type WallOverlayMeta = {
+  exists: boolean;
+  version: number;
+  width: number | null;
+  height: number | null;
+};
+
+const fetcherOverlayMeta = (url: string) =>
+  fetch(url, { cache: "no-store" }).then((r) => {
+    if (!r.ok) throw new Error("fetch failed");
+    return r.json() as Promise<WallOverlayMeta>;
+  });
+
 type HeroState = { url: string; phase: "popup" | "fly" } | null;
 
 function countTracks(axisPx: number, cellPx: number, gapPx: number): number {
@@ -47,8 +60,12 @@ export function PhotoWall() {
     refreshInterval: WALL_TEXT_POLL_MS,
     revalidateOnFocus: true,
   });
+  const { data: overlayMeta } = useSWR<WallOverlayMeta>("/api/wall-overlay-a", fetcherOverlayMeta, {
+    refreshInterval: POLL_MS,
+    revalidateOnFocus: true,
+  });
 
-  /** Chỉ ảnh gửi qua API/upload (`/uploads/...`) — không dùng URL mẫu hay ảnh ghép server. */
+  /** Chỉ ảnh gửi qua API/upload (`/uploads/...`) — không dùng URL mẫu. */
   const uploadPool = useMemo(() => {
     const raw = Array.isArray(data?.images) && data.images.length > 0 ? data.images : [];
     const uploads = raw.filter((u) => typeof u === "string" && u.startsWith("/uploads/"));
@@ -216,6 +233,33 @@ export function PhotoWall() {
             </div>
           )}
         </div>
+
+        {overlayMeta?.exists === true && overlayMeta.version > 0 ? (
+          <div
+            className="pointer-events-none absolute left-0 top-0 z-[50] min-h-0 min-w-0"
+            aria-hidden
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/wall-overlay-a/image?v=${overlayMeta.version}`}
+              alt=""
+              className="block max-w-none opacity-100"
+              style={
+                overlayMeta.width != null &&
+                overlayMeta.height != null &&
+                overlayMeta.width > 0 &&
+                overlayMeta.height > 0
+                  ? {
+                      width: overlayMeta.width,
+                      height: overlayMeta.height,
+                    }
+                  : undefined
+              }
+              decoding="async"
+              draggable={false}
+            />
+          </div>
+        ) : null}
 
         {hero ? (
           <div

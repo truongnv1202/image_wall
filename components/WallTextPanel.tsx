@@ -12,21 +12,6 @@ const fetcher = (url: string) =>
     return r.json() as Promise<WallTextPayload>;
   });
 
-type WallCompositeApi = {
-  version: number;
-  updatedAt: string;
-  ready: boolean;
-  lastError: string | null;
-  lastStep2: string | null;
-  compositeOutOfSync: boolean;
-};
-
-const fetcherComposite = (url: string) =>
-  fetch(url).then((r) => {
-    if (!r.ok) throw new Error("fetch failed");
-    return r.json() as Promise<WallCompositeApi>;
-  });
-
 const MAX_PHRASES = 24;
 const MAX_LEN = 400;
 
@@ -34,9 +19,6 @@ type Props = { apiUploadToken: string };
 
 export function WallTextPanel({ apiUploadToken }: Props) {
   const { data, error, isLoading, mutate } = useSWR<WallTextPayload>("/api/wall-text", fetcher);
-  const { data: compApi } = useSWR<WallCompositeApi>("/api/wall-composite", fetcherComposite, {
-    refreshInterval: 5000,
-  });
   const [phrases, setPhrases] = useState<string[]>([]);
   const [rotateSec, setRotateSec] = useState(60);
   const [crossfadeMs, setCrossfadeMs] = useState(800);
@@ -44,10 +26,6 @@ export function WallTextPanel({ apiUploadToken }: Props) {
   const [gridRows, setGridRows] = useState(60);
   const [gridTileWidthPx, setGridTileWidthPx] = useState(54);
   const [gridTileHeightPx, setGridTileHeightPx] = useState(72);
-  const [compositeIntervalSec, setCompositeIntervalSec] = useState(120);
-  const [compositeOutWidth, setCompositeOutWidth] = useState(1920);
-  const [compositeOutHeight, setCompositeOutHeight] = useState(1080);
-  const [wallCompositeFadeMs, setWallCompositeFadeMs] = useState(900);
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -60,10 +38,6 @@ export function WallTextPanel({ apiUploadToken }: Props) {
     setGridRows(data.gridRows ?? 60);
     setGridTileWidthPx(data.gridTileWidthPx ?? 54);
     setGridTileHeightPx(data.gridTileHeightPx ?? 72);
-    setCompositeIntervalSec(Math.max(60, Math.round((data.compositeIntervalMs ?? 120_000) / 1000)));
-    setCompositeOutWidth(data.compositeOutWidth ?? 1920);
-    setCompositeOutHeight(data.compositeOutHeight ?? 1080);
-    setWallCompositeFadeMs(data.wallCompositeFadeMs ?? 900);
   }, [data]);
 
   async function save() {
@@ -84,13 +58,6 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       const nextTileH = Math.min(384, Math.max(8, Math.floor(Number(gridTileHeightPx)) || 72));
       const graphicBlendMode = data?.graphicBlendMode ?? WALL_GRAPHIC_DEFAULT_BLEND;
       const graphicOverlayOpacity = data?.graphicOverlayOpacity ?? WALL_GRAPHIC_OVERLAY_OPACITY;
-      const nextCompositeIntervalMs = Math.min(
-        3_600_000,
-        Math.max(60_000, Math.round(Number(compositeIntervalSec) * 1000) || 120_000),
-      );
-      const nextOutW = Math.min(3840, Math.max(640, Math.floor(Number(compositeOutWidth)) || 1920));
-      const nextOutH = Math.min(2160, Math.max(360, Math.floor(Number(compositeOutHeight)) || 1080));
-      const nextWallCompositeFadeMs = Math.min(5000, Math.max(200, Math.floor(Number(wallCompositeFadeMs)) || 900));
       const wallTextUrl = `/api/wall-text?token=${encodeURIComponent(apiUploadToken)}`;
       const res = await fetch(wallTextUrl, {
         method: "POST",
@@ -108,12 +75,6 @@ export function WallTextPanel({ apiUploadToken }: Props) {
           gridTileHeightPx: nextTileH,
           graphicBlendMode,
           graphicOverlayOpacity,
-          compositeIntervalMs: nextCompositeIntervalMs,
-          compositeOutWidth: nextOutW,
-          compositeOutHeight: nextOutH,
-          wallCompositeFadeMs: nextWallCompositeFadeMs,
-          compositeBgMosaicOpacity: data?.compositeBgMosaicOpacity ?? 0.08,
-          compositeTextBrighten: data?.compositeTextBrighten ?? 0.28,
         } satisfies WallTextPayload),
       });
       const body = (await res.json().catch(() => ({}))) as WallTextPayload & { error?: string };
@@ -201,77 +162,6 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         </strong>
         ; nên giữ tỷ lệ gần 3×4 (dọc). Ảnh vừa khung, không kéo méo (có thể có viền đen nếu ảnh không đúng tỷ lệ). Thiếu ảnh so với số ô thì lặp theo thứ tự, ảnh mới vẫn ở đầu danh sách.
       </p>
-
-      <div className="border-t border-zinc-800 pt-3 text-xs font-medium text-zinc-400">
-        Ảnh tường ghép (server, ~16:9)
-      </div>
-      <p className="text-xs text-zinc-500">
-        Server chỉ ghép <strong>lưới ảnh</strong> theo cấu hình dưới đây, rồi phủ{" "}
-        <code className="text-zinc-400">wall-composite-A.png</code> lên trên nếu có: ưu tiên{" "}
-        <code className="text-zinc-400">data/wall-overlays/</code> (upload API), sau đó thư mục overlay (
-        <code className="text-zinc-400">WALL_OVERLAYS_DIR</code> / <code className="text-zinc-400">public/wall-overlays</code>
-        ). Blend theo <code className="text-zinc-400">graphicBlendMode</code>; độ trong suốt theo <strong>alpha trong file</strong>. Kết quả:{" "}
-        <code className="text-zinc-400">wall-composite.jpg</code> — <code className="text-zinc-400">/api/wall-composite/image</code>. Log:{" "}
-        <code className="text-zinc-400">/logs/wall-composite-step.log</code> hoặc{" "}
-        <code className="text-zinc-400">data/wall-composite-step.log</code>.
-      </p>
-      {compApi ? (
-        <p className="text-xs text-emerald-600/90 dark:text-emerald-400/90">
-          Ghép server: {compApi.ready ? `bản v${compApi.version}` : "chưa có file"}{" "}
-          {compApi.lastStep2 != null && compApi.lastStep2.length > 0 ? `— ${compApi.lastStep2}` : ""}
-          {compApi.lastError ? ` — lỗi: ${compApi.lastError}` : ""}
-        </p>
-      ) : null}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-xs text-zinc-400">
-          <span>Chu kỳ tạo lại ảnh ghép (giây, 60–3600)</span>
-          <input
-            type="number"
-            min={60}
-            max={3600}
-            step={1}
-            value={Number.isFinite(compositeIntervalSec) ? compositeIntervalSec : 120}
-            onChange={(e) => setCompositeIntervalSec(Number(e.target.value))}
-            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-zinc-400">
-          <span>Mờ dần khi đổi ảnh ghép (ms, 200–5000)</span>
-          <input
-            type="number"
-            min={200}
-            max={5000}
-            step={50}
-            value={Number.isFinite(wallCompositeFadeMs) ? wallCompositeFadeMs : 900}
-            onChange={(e) => setWallCompositeFadeMs(Number(e.target.value))}
-            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-zinc-400">
-          <span>Kích thước xuất — rộng (px, 640–3840)</span>
-          <input
-            type="number"
-            min={640}
-            max={3840}
-            step={2}
-            value={Number.isFinite(compositeOutWidth) ? compositeOutWidth : 1920}
-            onChange={(e) => setCompositeOutWidth(Number(e.target.value))}
-            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-zinc-400">
-          <span>Kích thước xuất — cao (px, 360–2160)</span>
-          <input
-            type="number"
-            min={360}
-            max={2160}
-            step={2}
-            value={Number.isFinite(compositeOutHeight) ? compositeOutHeight : 1080}
-            onChange={(e) => setCompositeOutHeight(Number(e.target.value))}
-            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
-          />
-        </label>
-      </div>
 
       <div className="border-t border-zinc-800 pt-3 text-xs font-medium uppercase tracking-wide text-zinc-500">
         Câu chữ (watermark giữa tường ảnh)

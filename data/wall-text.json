@@ -9,11 +9,5 @@
   "gridTileWidthPx": 54,
   "gridTileHeightPx": 72,
   "graphicBlendMode": "hard-light",
-  "graphicOverlayOpacity": 0.9,
-  "compositeIntervalMs": 120000,
-  "compositeOutWidth": 1920,
-  "compositeOutHeight": 1080,
-  "wallCompositeFadeMs": 900,
-  "compositeBgMosaicOpacity": 0.08,
-  "compositeTextBrighten": 0.28
+  "graphicOverlayOpacity": 0.9
 }

@@ -1,3 +1,4 @@
+import { promises as fs } from "fs";
 import path from "path";
 
 /**
@@ -28,11 +29,6 @@ export function nenPngSearchPaths(): [string, string] {
 
 const OVERLAY_A_FILENAME = "wall-composite-A.png";
 
-/** Trong image/volume Docker thường chỉ đọc — dùng cho `chu`/`nen` bake sẵn. */
-export function wallCompositeOverlayAPath(): string {
-  return path.join(wallOverlaysDir(), OVERLAY_A_FILENAME);
-}
-
 /**
  * Bản upload API ghi tại đây (thư mục `data/` luôn ghi được trong entrypoint Docker).
  * Không phụ thuộc volume RO của `public/wall-overlays`.
@@ -41,7 +37,17 @@ export function wallCompositeOverlayADataPath(): string {
   return path.join(process.cwd(), "data", "wall-overlays", OVERLAY_A_FILENAME);
 }
 
-/** Đọc overlay A: ưu tiên file upload (`data/…`), sau đó thư mục overlay (image/volume). */
-export function wallCompositeOverlayASearchPaths(): readonly [string, string] {
-  return [wallCompositeOverlayADataPath(), wallCompositeOverlayAPath()];
+/** Ưu tiên bản upload (`data/…`), sau đó `{wallOverlaysDir}/wall-composite-A.png`. */
+export async function resolveWallCompositeOverlayAFile(): Promise<string | null> {
+  const candidates = [wallCompositeOverlayADataPath(), path.join(wallOverlaysDir(), OVERLAY_A_FILENAME)];
+  for (const p of candidates) {
+    try {
+      await fs.access(p);
+      const st = await fs.stat(p);
+      if (st.isFile() && st.size > 0) return p;
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }
