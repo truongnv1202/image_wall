@@ -15,3 +15,6 @@ export const HERO_FLY_MS = 1200;
 
 /** Khoảng cách giữa các ô (px). */
 export const STRIP_GAP_PX = 2;
+
+/** Xáo trộn thứ tự ảnh trên lưới (chỉ hiển thị), mặc định mỗi 1 phút. */
+export const GRID_SHUFFLE_INTERVAL_MS = 60_000;

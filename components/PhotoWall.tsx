@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
 import type { ImagesPayload } from "@/lib/types";
 import type { WallTextPayload } from "@/lib/wallTextStore";
-import { HERO_FLY_MS, HERO_POPUP_MS, STRIP_GAP_PX, STRIP_TILE_H, STRIP_TILE_W } from "@/lib/wallStripConstants";
+import { HERO_FLY_MS, HERO_POPUP_MS, GRID_SHUFFLE_INTERVAL_MS, STRIP_GAP_PX, STRIP_TILE_H, STRIP_TILE_W } from "@/lib/wallStripConstants";
 
 const POLL_MS = 4000;
 const WALL_TEXT_POLL_MS = 10_000;
@@ -37,6 +37,36 @@ const fetcherOverlayMeta = (url: string) =>
 
 type HeroState = { url: string; phase: "popup" | "fly" } | null;
 
+const SHUFFLE_ANIM_CLASSES = [
+  "wall-grid-shuffle--pop",
+  "wall-grid-shuffle--flash",
+  "wall-grid-shuffle--jitter",
+  "wall-grid-shuffle--depth",
+] as const;
+
+function shuffleArrayCopy<T>(arr: readonly T[]): T[] {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = a[i]!;
+    a[i] = a[j]!;
+    a[j] = t;
+  }
+  return a;
+}
+
+function sameUrlMultiset(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const counts = new Map<string, number>();
+  for (const u of a) counts.set(u, (counts.get(u) ?? 0) + 1);
+  for (const u of b) {
+    const c = counts.get(u);
+    if (c == null || c <= 0) return false;
+    counts.set(u, c - 1);
+  }
+  return [...counts.values()].every((n) => n === 0);
+}
+
 function countTracks(axisPx: number, cellPx: number, gapPx: number): number {
   if (axisPx <= 0 || cellPx <= 0) return 0;
   const step = cellPx + gapPx;
@@ -50,7 +80,12 @@ export function PhotoWall() {
   const heroQueueRef = useRef<string[]>([]);
   const [hero, setHero] = useState<HeroState>(null);
   const wallViewportRef = useRef<HTMLDivElement>(null);
+  const gridShuffleAnimRef = useRef<HTMLDivElement>(null);
   const [viewportSize, setViewportSize] = useState({ w: 1200, h: 800 });
+  /** Thứ tự ảnh khi vẽ lưới; định kỳ xáo (không đổi danh sách từ API). */
+  const [gridOrder, setGridOrder] = useState<string[]>([]);
+  /** Tăng mỗi lần xáo — chọn hiệu ứng theo modulo. */
+  const [shuffleAnimIdx, setShuffleAnimIdx] = useState(-1);
 
   const { data } = useSWR<ImagesPayload>("/api/images", fetcher, {
     refreshInterval: POLL_MS,
@@ -79,6 +114,21 @@ export function PhotoWall() {
     return [];
   }, [data?.images]);
 
+  const poolSignature = useMemo(() => uploadPool.join("\0"), [uploadPool]);
+
+  useEffect(() => {
+    if (uploadPool.length === 0) {
+      setGridOrder([]);
+      return;
+    }
+    setGridOrder((prev) => {
+      if (prev.length === 0) return [...uploadPool];
+      if (!sameUrlMultiset(prev, uploadPool)) return [...uploadPool];
+      return prev;
+    });
+  }, [poolSignature]);
+
+  const paintOrder = gridOrder.length > 0 ? gridOrder : uploadPool;
   const tileW = wallCfg?.gridTileWidthPx ?? STRIP_TILE_W;
   const tileH = wallCfg?.gridTileHeightPx ?? STRIP_TILE_H;
 
@@ -93,13 +143,25 @@ export function PhotoWall() {
   );
 
   const rowTiles = useMemo(() => {
-    if (rows <= 0 || tilesPerRow <= 0 || uploadPool.length === 0) return [];
-    const len = uploadPool.length;
+    if (rows <= 0 || tilesPerRow <= 0 || paintOrder.length === 0) return [];
+    const len = paintOrder.length;
     return Array.from({ length: rows }, (_, row) => {
       const offset = row * 17;
-      return Array.from({ length: tilesPerRow }, (_, i) => uploadPool[(offset + i) % len]!);
+      return Array.from({ length: tilesPerRow }, (_, i) => paintOrder[(offset + i) % len]!);
     });
-  }, [rows, tilesPerRow, uploadPool]);
+  }, [rows, tilesPerRow, paintOrder]);
+
+  useEffect(() => {
+    if (paintOrder.length < 2) return;
+    const id = window.setInterval(() => {
+      setGridOrder((ord) => {
+        if (ord.length < 2) return ord;
+        return shuffleArrayCopy(ord);
+      });
+      setShuffleAnimIdx((n) => n + 1);
+    }, GRID_SHUFFLE_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [paintOrder.length]);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -108,6 +170,15 @@ export function PhotoWall() {
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
   }, []);
+
+  useLayoutEffect(() => {
+    const el = gridShuffleAnimRef.current;
+    if (!el) return;
+    for (const c of SHUFFLE_ANIM_CLASSES) el.classList.remove(c);
+    if (reducedMotion || shuffleAnimIdx < 0) return;
+    void el.offsetWidth;
+    el.classList.add(SHUFFLE_ANIM_CLASSES[shuffleAnimIdx % SHUFFLE_ANIM_CLASSES.length]!);
+  }, [shuffleAnimIdx, reducedMotion]);
 
   /** Ảnh upload mới: popup giữa màn → thu về góc (chỉ URL `/uploads/`). */
   useEffect(() => {
@@ -194,7 +265,11 @@ export function PhotoWall() {
               </p>
             </div>
           ) : (
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" style={{ gap: STRIP_GAP_PX }}>
+            <div
+              ref={gridShuffleAnimRef}
+              className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+              style={{ gap: STRIP_GAP_PX }}
+            >
               {rowTiles.map((tiles, row) => (
                 <div
                   key={row}
