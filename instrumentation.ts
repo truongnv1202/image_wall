@@ -1,3 +1,6 @@
 export async function register() {
-  /* Job ghép ảnh tường định kỳ đã tắt — không khởi động scheduler. */
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { startWallCompositeScheduler } = await import("@/lib/wallCompositeScheduler");
+    startWallCompositeScheduler();
+  }
 }

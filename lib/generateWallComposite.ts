@@ -7,6 +7,11 @@ import sharp, { type Blend, type OverlayOptions } from "sharp";
 import { readImages } from "@/lib/imageStore";
 import { cssBlendToSharp } from "@/lib/wallCompositeBlendMap";
 import { readWallCompositeMeta, writeWallCompositeMeta } from "@/lib/wallCompositeMeta";
+import {
+  applyLetterMaskToGridRgba,
+  buildLetterMaskFromChuRgba,
+  maskMaxValue,
+} from "@/lib/wallCompositeChuMask";
 import { readWallText } from "@/lib/wallTextStore";
 import { STRIP_GAP_PX } from "@/lib/wallStripConstants";
 
@@ -72,6 +77,44 @@ async function readOptionalFile(abs: string): Promise<Buffer | null> {
   } catch {
     return null;
   }
+}
+
+function shuffleInPlace<T>(arr: T[]): void {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const a = arr[i]!;
+    arr[i] = arr[j]!;
+    arr[j] = a;
+  }
+}
+
+/** chu.png căn giữa canvas outW×outH — raw RGBA (để tạo mask). */
+async function buildChuRgbaCanvasRaw(chuBuf: Buffer, outW: number, outH: number): Promise<Buffer> {
+  const m = await sharp(chuBuf).metadata();
+  const iw = Math.max(1, m.width ?? 1);
+  const ih = Math.max(1, m.height ?? 1);
+  const scale = Math.min(outW / iw, outH / ih);
+  const w = Math.max(1, Math.round(iw * scale));
+  const h = Math.max(1, Math.round(ih * scale));
+  const left = Math.floor((outW - w) / 2);
+  const top = Math.floor((outH - h) / 2);
+  const scaled = await sharp(chuBuf)
+    .resize(w, h, { fit: "fill" })
+    .ensureAlpha()
+    .png()
+    .toBuffer();
+  return sharp({
+    create: {
+      width: outW,
+      height: outH,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite([{ input: scaled, left, top }])
+    .ensureAlpha()
+    .raw()
+    .toBuffer();
 }
 
 /**
@@ -158,12 +201,20 @@ export async function regenerateWallComposite(): Promise<void> {
     const gridW = cols * cellW + Math.max(0, cols - 1) * gap;
     const gridH = rows * cellH + Math.max(0, rows - 1) * gap;
 
+    /** STEP 1: lưới cols×rows từ config; lặp pool; mỗi lần ghép xáo trộn vị trí ô ngẫu nhiên. */
+    const cells = rows * cols;
+    const cellUrls: string[] = [];
+    for (let i = 0; i < cells; i++) {
+      cellUrls.push(pool[i % pool.length]!);
+    }
+    shuffleInPlace(cellUrls);
+
     const composites: { input: Buffer; left: number; top: number }[] = [];
-    let idx = 0;
+    let cellIdx = 0;
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        const url = pool[idx % pool.length]!;
-        idx++;
+        const url = cellUrls[cellIdx]!;
+        cellIdx++;
         let raw: Buffer;
         try {
           raw = await loadImageBytes(url);
@@ -203,10 +254,16 @@ export async function regenerateWallComposite(): Promise<void> {
     });
     const gridJpeg = await base.composite(composites).jpeg({ quality: 88 }).toBuffer();
 
-    /* Một lần nén JPEG cuối; giữa chừng dùng RGBA để trộn alpha đúng (tránh chuỗi JPEG làm lệch màu). */
-    let rgbaBase = await sharp(gridJpeg)
+    /* Lưới full khung xuất — RGBA raw + PNG nền (STEP 3: lớp dưới cùng). */
+    const { data: gridRaw, info: gridInfo } = await sharp(gridJpeg)
       .resize(outW, outH, { fit: "cover", position: "centre" })
       .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const gridBasePng = await sharp(gridRaw, {
+      raw: { width: gridInfo.width, height: gridInfo.height, channels: 4 },
+    })
       .png()
       .toBuffer();
 
@@ -228,8 +285,28 @@ export async function regenerateWallComposite(): Promise<void> {
 
     const chuBuf = await readOptionalFile(CHU_PNG);
     if (chuBuf) {
-      const chuLayer = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
-      stack.push({ input: chuLayer, left: 0, top: 0 });
+      /**
+       * STEP 2: mask từ chu (alpha × độ lệch màu viền khi không có alpha).
+       * chu → mask × GRID → nhân chữ (multiply) → CHUMOI.
+       * STEP 3: CHUMOI trên nen, nền dưới là lưới full (gridBasePng).
+       */
+      const chuCanvasRaw = await buildChuRgbaCanvasRaw(chuBuf, outW, outH);
+      const mask = buildLetterMaskFromChuRgba(Buffer.from(chuCanvasRaw), outW, outH);
+      if (maskMaxValue(mask) < 12) {
+        console.warn("[wallComposite] mask chữ quá yếu — dùng lớp chữ mờ phủ cả khung");
+        const chuLayer = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
+        stack.push({ input: chuLayer, left: 0, top: 0 });
+      } else {
+        const chumoiRaw = applyLetterMaskToGridRgba(Buffer.from(gridRaw), mask, outW, outH);
+        const chuForTone = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
+        const chumoiPng = await sharp(chumoiRaw, {
+          raw: { width: outW, height: outH, channels: 4 },
+        })
+          .composite([{ input: chuForTone, blend: "multiply", left: 0, top: 0 }])
+          .png()
+          .toBuffer();
+        stack.push({ input: chumoiPng, left: 0, top: 0 });
+      }
     } else {
       console.warn("[wallComposite] không có chu.png — bỏ qua lớp chữ:", CHU_PNG);
     }
@@ -258,8 +335,8 @@ export async function regenerateWallComposite(): Promise<void> {
 
     const merged =
       stack.length === 0
-        ? await sharp(rgbaBase).jpeg({ quality: 92, mozjpeg: true }).toBuffer()
-        : await sharp(rgbaBase)
+        ? await sharp(gridBasePng).jpeg({ quality: 92, mozjpeg: true }).toBuffer()
+        : await sharp(gridBasePng)
             .composite(stack)
             .jpeg({ quality: 92, mozjpeg: true })
             .toBuffer();
