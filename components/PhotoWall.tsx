@@ -236,25 +236,16 @@ export function PhotoWall() {
 
         {overlayMeta?.exists === true && overlayMeta.version > 0 ? (
           <div
-            className="pointer-events-none absolute left-0 top-0 z-[50] min-h-0 min-w-0"
+            className="pointer-events-none absolute inset-0 z-[50] min-h-0 min-w-0"
             aria-hidden
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`/api/wall-overlay-a/image?v=${overlayMeta.version}`}
               alt=""
-              className="block max-w-none opacity-100"
-              style={
-                overlayMeta.width != null &&
-                overlayMeta.height != null &&
-                overlayMeta.width > 0 &&
-                overlayMeta.height > 0
-                  ? {
-                      width: overlayMeta.width,
-                      height: overlayMeta.height,
-                    }
-                  : undefined
-              }
+              width={overlayMeta.width && overlayMeta.height ? overlayMeta.width : undefined}
+              height={overlayMeta.width && overlayMeta.height ? overlayMeta.height : undefined}
+              className="h-full w-full object-contain object-center opacity-100"
               decoding="async"
               draggable={false}
             />
