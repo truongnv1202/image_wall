@@ -10,11 +10,15 @@ services:
     user: "0:0"
     environment:
       NODE_ENV: production
+      # Thư mục chứa chu.png / nen.png trong container (mặc định khớp volume bên dưới).
+      WALL_OVERLAYS_DIR: ${WALL_OVERLAYS_DIR:-/app/public/wall-overlays}
       # Trang upload bí mật: https://$DOMAIN/upload/$UPLOAD_PAGE_TOKEN — đặt trong file .env cùng thư mục compose (đã .gitignore). Để trống: không có trang upload, POST /api/upload không yêu cầu token.
       UPLOAD_PAGE_TOKEN: ${UPLOAD_PAGE_TOKEN:-}
     volumes:
       - pools-data:/app/data
       - uploads-data:/app/public/uploads
+      # Host: /opt/image_wall/public/wall-overlays — mount vào container (chu.png, nen.png, wall-composite-A.png).
+      - ./public/wall-overlays:/app/public/wall-overlays:ro
 
   nginx:
     image: nginx:alpine

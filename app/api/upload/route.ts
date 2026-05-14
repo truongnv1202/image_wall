@@ -4,10 +4,10 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 
 import { prependImageUrl } from "@/lib/imageStore";
-import { normalizeUploadImage } from "@/lib/normalizeUploadImage";
 import { rejectWithoutUploadToken } from "@/lib/uploadAuth";
 import { looksLikeHeicOrHeif } from "@/lib/sniffImageFormat";
 import { normalizeUploadTokenSegment } from "@/lib/uploadPageToken";
+import { wallUploadBufferToJpeg300x400 } from "@/lib/wallUploadTile";
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
@@ -46,18 +46,19 @@ export async function POST(request: Request) {
     await mkdir(uploadDir, { recursive: true });
 
     const input = Buffer.from(await file.arrayBuffer());
-    const normalized = normalizeUploadImage(input);
-    if (!normalized) {
-      if (looksLikeHeicOrHeif(input)) {
-        return NextResponse.json(
-          {
-            error:
-              "Ảnh HEIC/HEIF (thường từ iPhone). Hãy đổi sang JPG/PNG trong Ảnh rồi upload lại, hoặc chụp/chọn định dạng tương thích.",
-            code: "HEIC",
-          },
-          { status: 400 },
-        );
-      }
+    if (looksLikeHeicOrHeif(input)) {
+      return NextResponse.json(
+        {
+          error:
+            "Ảnh HEIC/HEIF (thường từ iPhone). Hãy đổi sang JPG/PNG trong Ảnh rồi upload lại, hoặc chụp/chọn định dạng tương thích.",
+          code: "HEIC",
+        },
+        { status: 400 },
+      );
+    }
+
+    const jpegBuf = await wallUploadBufferToJpeg300x400(input);
+    if (!jpegBuf) {
       return NextResponse.json(
         {
           error:
@@ -68,8 +69,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const name = `${randomUUID()}${normalized.ext}`;
-    await writeFile(path.join(uploadDir, name), normalized.buffer);
+    const name = `${randomUUID()}.jpg`;
+    await writeFile(path.join(uploadDir, name), jpegBuf);
 
     const publicUrl = `/uploads/${name}`;
     const data = await prependImageUrl(publicUrl);

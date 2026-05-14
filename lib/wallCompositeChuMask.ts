@@ -13,9 +13,9 @@ export type ChuMaskOptions = {
 };
 
 const DEFAULT_MASK_OPTS: ChuMaskOptions = {
-  colorDistLow: 10,
-  colorDistHigh: 44,
-  borderSamplePx: 2,
+  colorDistLow: 5,
+  colorDistHigh: 58,
+  borderSamplePx: 3,
 };
 
 function smoothstep(edge0: number, edge1: number, x: number): number {

@@ -14,22 +14,36 @@ import {
 } from "@/lib/wallCompositeChuMask";
 import { readWallText } from "@/lib/wallTextStore";
 import { STRIP_GAP_PX } from "@/lib/wallStripConstants";
+import { ensureWallUploadTileOnDisk } from "@/lib/wallUploadTile";
+import { rasterSvgChuPlaceholder } from "@/lib/wallCompositeSvgChu";
 
 const root = process.cwd();
 const OUT_REL = path.join("public", "generated", "wall-composite.jpg");
-const OVERLAY_A = path.join(root, "public", "wall-overlays", "wall-composite-A.png");
 const GENERATED_DIR = path.join(root, "public", "generated");
 
 /**
- * Ưu tiên `public/wall-overlays/` (vd. `/opt/image_wall/public/wall-overlays/chu.png`),
- * không có thì thử `public/` gốc.
+ * Thư mục chứa `chu.png`, `nen.png`, `wall-composite-A.png`.
+ * Production (Docker): đặt `WALL_OVERLAYS_DIR=/opt/image_wall/public/wall-overlays` nếu `cwd` ≠ thư mục project.
+ * Mặc định: `{cwd}/public/wall-overlays`.
  */
+function wallOverlaysDir(): string {
+  const env = process.env.WALL_OVERLAYS_DIR?.trim();
+  if (env && env.length > 0) {
+    return path.resolve(env);
+  }
+  return path.join(root, "public", "wall-overlays");
+}
+
+const overlaysBase = wallOverlaysDir();
+const OVERLAY_A = path.join(overlaysBase, "wall-composite-A.png");
+
+/** Ưu tiên thư mục overlay (cấu hình hoặc `public/wall-overlays/`), sau đó `public/` gốc. */
 const NEN_PNG_PATHS = [
-  path.join(root, "public", "wall-overlays", "nen.png"),
+  path.join(overlaysBase, "nen.png"),
   path.join(root, "public", "nen.png"),
 ] as const;
 const CHU_PNG_PATHS = [
-  path.join(root, "public", "wall-overlays", "chu.png"),
+  path.join(overlaysBase, "chu.png"),
   path.join(root, "public", "chu.png"),
 ] as const;
 
@@ -59,6 +73,9 @@ async function loadImageBytes(url: string): Promise<Buffer> {
   if (url.startsWith("/")) {
     const rel = url.replace(/^\/+/, "");
     const abs = path.join(process.cwd(), "public", rel);
+    if (rel.startsWith("uploads/")) {
+      await ensureWallUploadTileOnDisk(abs);
+    }
     return fs.readFile(abs);
   }
   if (url.startsWith("http://") || url.startsWith("https://")) {
@@ -355,36 +372,51 @@ export async function regenerateWallComposite(): Promise<void> {
       console.warn("[wallComposite] không có nen.png — đã thử:", NEN_PNG_PATHS.join(" | "));
     }
 
-    const chuBuf = await readOptionalFirstPath(CHU_PNG_PATHS);
-    if (chuBuf) {
-      /**
-       * STEP 2: mask từ chu (alpha × độ lệch màu viền khi không có alpha).
-       * chu → mask × GRID → nhân chữ (multiply) → CHUMOI.
-       * STEP 3: CHUMOI trên nen, nền dưới là lưới full (gridBasePng).
-       */
-      const chuCanvasRaw = await buildChuRgbaCanvasRaw(chuBuf, outW, outH);
-      const mask = buildLetterMaskFromChuRgba(Buffer.from(chuCanvasRaw), outW, outH);
-      const mMax = maskMaxValue(mask);
-      if (mMax < 12) {
-        console.warn("[wallComposite] STEP2: mask chữ quá yếu (max=", mMax, ") — lớp chữ mờ phủ cả khung");
-        lastStep2 = "fallback-semi-chu";
-        const chuLayer = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
-        stack.push({ input: chuLayer, left: 0, top: 0 });
-      } else {
-        lastStep2 = devChuBootstrap ? "chumoi-dev-placeholder-chu" : "chumoi";
-        console.info("[wallComposite] STEP2:", lastStep2, "maskMax=", mMax);
-        const chumoiRaw = applyLetterMaskToGridRgba(Buffer.from(gridRaw), mask, outW, outH);
-        const chuForTone = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
-        const chumoiPng = await sharp(chumoiRaw, {
-          raw: { width: outW, height: outH, channels: 4 },
-        })
-          .composite([{ input: chuForTone, blend: "multiply", left: 0, top: 0 }])
-          .png()
-          .toBuffer();
-        stack.push({ input: chumoiPng, left: 0, top: 0 });
-      }
+    let chuBuf = await readOptionalFirstPath(CHU_PNG_PATHS);
+    let chuFromSvgFallback = false;
+    if (!chuBuf) {
+      const phrase = wall.phrases.length > 0 ? wall.phrases[0]! : "HÒA BÌNH";
+      chuBuf = await rasterSvgChuPlaceholder(phrase, outW, outH);
+      chuFromSvgFallback = true;
+      console.warn(
+        "[wallComposite] STEP2: không có chu.png — dùng chữ SVG từ wall-text, đã thử:",
+        CHU_PNG_PATHS.join(" | "),
+      );
+    }
+
+    /**
+     * STEP 2: mask từ chu (alpha × độ lệch màu viền khi không có alpha).
+     * chu → mask × GRID → nhân chữ (multiply) → CHUMOI (+ lớp chữ mờ phía trên để luôn thấy nét chữ).
+     * STEP 3: CHUMOI trên nen, nền dưới là lưới full (gridBasePng).
+     */
+    const chuCanvasRaw = await buildChuRgbaCanvasRaw(chuBuf, outW, outH);
+    const mask = buildLetterMaskFromChuRgba(Buffer.from(chuCanvasRaw), outW, outH);
+    const mMax = maskMaxValue(mask);
+    if (mMax < 5) {
+      console.warn("[wallComposite] STEP2: mask quá yếu (max=", mMax, ") — lớp chữ mờ phủ cả khung");
+      lastStep2 = chuFromSvgFallback ? "fallback-semi-chu-svg" : "fallback-semi-chu";
+      const chuLayer = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
+      stack.push({ input: chuLayer, left: 0, top: 0 });
     } else {
-      console.warn("[wallComposite] STEP2 skipped — không có chu.png — đã thử:", CHU_PNG_PATHS.join(" | "));
+      if (chuFromSvgFallback) {
+        lastStep2 = "chumoi-svg-phrase";
+      } else if (devChuBootstrap) {
+        lastStep2 = "chumoi-dev-placeholder-chu";
+      } else {
+        lastStep2 = "chumoi";
+      }
+      console.info("[wallComposite] STEP2:", lastStep2, "maskMax=", mMax);
+      const chumoiRaw = applyLetterMaskToGridRgba(Buffer.from(gridRaw), mask, outW, outH);
+      const chuForTone = await buildChuLayerCentered(chuBuf, outW, outH, CHU_OPACITY);
+      const chumoiPng = await sharp(chumoiRaw, {
+        raw: { width: outW, height: outH, channels: 4 },
+      })
+        .composite([{ input: chuForTone, blend: "multiply", left: 0, top: 0 }])
+        .png()
+        .toBuffer();
+      stack.push({ input: chumoiPng, left: 0, top: 0 });
+      const chuOnTop = await buildChuLayerCentered(chuBuf, outW, outH, 0.34);
+      stack.push({ input: chuOnTop, left: 0, top: 0 });
     }
 
     const overlayOpacity = Math.min(1, Math.max(0, wall.graphicOverlayOpacity));

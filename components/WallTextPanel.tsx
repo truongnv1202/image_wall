@@ -206,10 +206,11 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         Ảnh tường ghép (server, ~16:9)
       </div>
       <p className="text-xs text-zinc-500">
-        Server ghép <strong>lưới ảnh</strong> (STEP 1), mask theo <code className="text-zinc-400">chu.png</code> (ưu tiên{" "}
-        <code className="text-zinc-400">public/wall-overlays/chu.png</code>, không có thì{" "}
-        <code className="text-zinc-400">public/chu.png</code>) + lưới trong chữ (STEP 2 — CHUMOI), rồi{" "}
-        <code className="text-zinc-400">nen.png</code> cùng thứ tự thư mục và overlay A nếu có.{" "}
+        Server ghép <strong>lưới ảnh</strong> (STEP 1), mask theo <code className="text-zinc-400">chu.png</code> trong thư mục overlay (mặc định{" "}
+        <code className="text-zinc-400">public/wall-overlays/</code>; Docker có thể set env{" "}
+        <code className="text-zinc-400">WALL_OVERLAYS_DIR</code> tuyệt đối, vd.{" "}
+        <code className="text-zinc-400">/app/public/wall-overlays</code>) + lưới trong chữ (STEP 2 — CHUMOI), rồi{" "}
+        <code className="text-zinc-400">nen.png</code> cùng thư mục và overlay A nếu có.{" "}
         <code className="text-zinc-400">wall-composite-A.png</code> thiếu thì bỏ qua overlay. Mỗi lần xong chỉ giữ{" "}
         <code className="text-zinc-400">wall-composite.jpg</code> — <code className="text-zinc-400">/api/wall-composite/image</code>.
       </p>

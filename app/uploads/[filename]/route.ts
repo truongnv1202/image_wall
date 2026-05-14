@@ -3,9 +3,9 @@ import path from "path";
 
 import { NextResponse } from "next/server";
 
-export const runtime = "nodejs";
+import { ensureWallUploadTileOnDisk } from "@/lib/wallUploadTile";
 
-/** Tên file do `crypto.randomUUID()` (RFC 4122 v4) + đuôi — chặn path traversal. */
+export const runtime = "nodejs";
 const UPLOAD_NAME =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:jpe?g|png|gif|webp)$/i;
 
@@ -15,6 +15,33 @@ function contentTypeForName(filename: string): string {
   if (lower.endsWith(".gif")) return "image/gif";
   if (lower.endsWith(".webp")) return "image/webp";
   return "image/jpeg";
+}
+
+/** Ưu tiên magic bytes (sau khi file có thể đã ghi đè JPEG nhưng đuôi .png). */
+function contentTypeForBuffer(buf: Buffer, filename: string): string {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (
+    buf.length >= 8 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47 &&
+    buf[4] === 0x0d &&
+    buf[5] === 0x0a &&
+    buf[6] === 0x1a &&
+    buf[7] === 0x0a
+  ) {
+    return "image/png";
+  }
+  if (buf.length >= 6 && buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) {
+    return "image/gif";
+  }
+  if (buf.length >= 12 && buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WEBP") {
+    return "image/webp";
+  }
+  return contentTypeForName(filename);
 }
 
 /**
@@ -38,11 +65,12 @@ export async function GET(
   }
 
   try {
+    await ensureWallUploadTileOnDisk(filePath);
     const buf = await readFile(filePath);
     return new NextResponse(buf, {
       status: 200,
       headers: {
-        "Content-Type": contentTypeForName(filename),
+        "Content-Type": contentTypeForBuffer(buf, filename),
         "Cache-Control": "public, max-age=31536000, immutable",
       },
     });
