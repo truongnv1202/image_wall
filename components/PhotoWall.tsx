@@ -289,7 +289,11 @@ export function PhotoWall() {
                   </div>
                 ))}
               </div>
-              <WallGraphicBlend blendMode={graphicBlendMode} overlayOpacity={graphicOverlayOpacity} />
+              <WallGraphicBlend
+                blendMode={graphicBlendMode}
+                overlayOpacity={graphicOverlayOpacity}
+                hideBackdrop={hasLocalUploads}
+              />
             </>
           )}
         </div>
