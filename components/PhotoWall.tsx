@@ -228,7 +228,11 @@ export function PhotoWall() {
                 draggable={false}
                 decoding="async"
               />
-              <WallGraphicBlend blendMode={graphicBlendMode} overlayOpacity={graphicOverlayOpacity} />
+              <WallGraphicBlend
+                blendMode={graphicBlendMode}
+                overlayOpacity={graphicOverlayOpacity}
+                hideBackdrop
+              />
             </>
           ) : showServerComposite ? (
             <WallCompositeBackground
