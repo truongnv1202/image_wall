@@ -24,8 +24,9 @@
 .DS_Store
 *.pem
 
-# log ghép tường (tạo runtime trong public/logs)
+# log ghép tường (tạo runtime trong public/logs hoặc data/)
 /public/logs/*.log
+/data/wall-composite-step.log
 
 # debug
 npm-debug.log*
