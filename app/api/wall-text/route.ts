@@ -23,8 +23,5 @@ export async function POST(request: Request) {
 
   const next = normalizeWallTextPayload(body);
   const saved = await writeWallText(next);
-  void import("@/lib/generateWallComposite")
-    .then((m) => m.regenerateWallComposite())
-    .catch((e) => console.error("[wall-text POST] wall composite", e));
   return NextResponse.json(saved);
 }

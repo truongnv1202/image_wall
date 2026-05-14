@@ -20,7 +20,7 @@ const WALL_TEXT_POLL_MS = 10_000;
 const COMPOSITE_POLL_MS = 2500;
 
 const fetcher = (url: string) =>
-  fetch(url).then((r) => {
+  fetch(url, { cache: "no-store" }).then((r) => {
     if (!r.ok) throw new Error("fetch failed");
     return r.json() as Promise<ImagesPayload>;
   });
@@ -37,6 +37,8 @@ type WallCompositeApi = {
   updatedAt: string;
   ready: boolean;
   lastError: string | null;
+  /** `data/images.json` mới hơn `wall-composite.jpg` — ảnh upload chưa vào bản ghép hiện tại. */
+  compositeOutOfSync?: boolean;
 };
 
 const fetcherWallComposite = (url: string) =>
@@ -76,11 +78,14 @@ export function PhotoWall() {
     { refreshInterval: COMPOSITE_POLL_MS, revalidateOnFocus: true },
   );
 
-  const compositeReady = Boolean(wallComposite?.ready && wallComposite.version > 0);
-  const compositeFadeMs = wallCfg?.wallCompositeFadeMs ?? 900;
-
   const wallpaperUrl =
     typeof data?.wallpaperUrl === "string" && data.wallpaperUrl.length > 0 ? data.wallpaperUrl : null;
+
+  const compositeReady = Boolean(wallComposite?.ready && wallComposite.version > 0);
+  const compositeOutOfSync = Boolean(wallComposite?.compositeOutOfSync);
+  const showServerComposite =
+    !wallpaperUrl && compositeReady && wallComposite != null && !compositeOutOfSync;
+  const compositeFadeMs = wallCfg?.wallCompositeFadeMs ?? 900;
 
   const graphicBlendMode = useMemo(() => {
     return (
@@ -225,7 +230,7 @@ export function PhotoWall() {
               />
               <WallGraphicBlend blendMode={graphicBlendMode} overlayOpacity={graphicOverlayOpacity} />
             </>
-          ) : compositeReady && wallComposite ? (
+          ) : showServerComposite ? (
             <WallCompositeBackground
               url={wallComposite.url}
               version={wallComposite.version}

@@ -73,10 +73,6 @@ export async function POST(request: Request) {
     const publicUrl = `/uploads/${name}`;
     const payload = await setWallpaperUrl(publicUrl);
 
-    void import("@/lib/generateWallComposite")
-      .then((m) => m.regenerateWallComposite())
-      .catch((e) => console.error("[wallpaper] wall composite", e));
-
     return NextResponse.json({ url: publicUrl, ...payload });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Write failed";
@@ -92,9 +88,6 @@ export async function DELETE(request: Request) {
   try {
     const before = await readImages();
     const payload = await setWallpaperUrl(null);
-    void import("@/lib/generateWallComposite")
-      .then((m) => m.regenerateWallComposite())
-      .catch((e) => console.error("[wallpaper DELETE] wall composite", e));
     return NextResponse.json({ ...payload, removed: before.wallpaperUrl });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed";
