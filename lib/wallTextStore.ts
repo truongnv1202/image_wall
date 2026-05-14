@@ -116,7 +116,7 @@ export function normalizeWallTextPayload(raw: unknown): WallTextPayload {
     typeof o.compositeIntervalMs === "number" && Number.isFinite(o.compositeIntervalMs)
       ? Math.floor(o.compositeIntervalMs)
       : DEFAULT.compositeIntervalMs;
-  compositeIntervalMs = Math.min(Math.max(60_000, compositeIntervalMs), 3_600_000);
+  compositeIntervalMs = Math.min(Math.max(10_000, compositeIntervalMs), 3_600_000);
 
   let compositeOutWidth =
     typeof o.compositeOutWidth === "number" && Number.isFinite(o.compositeOutWidth)
