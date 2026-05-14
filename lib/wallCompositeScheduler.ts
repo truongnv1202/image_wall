@@ -18,7 +18,7 @@ async function tickAndSchedule() {
   try {
     const { readWallText } = await import("@/lib/wallTextStore");
     const w = await readWallText();
-    const ms = Math.max(10_000, w.compositeIntervalMs);
+    const ms = Math.max(60_000, w.compositeIntervalMs);
     timer = setTimeout(() => void tickAndSchedule(), ms);
   } catch {
     timer = setTimeout(() => void tickAndSchedule(), 60_000);

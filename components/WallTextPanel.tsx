@@ -30,8 +30,6 @@ export function WallTextPanel({ apiUploadToken }: Props) {
   const [compositeOutWidth, setCompositeOutWidth] = useState(1920);
   const [compositeOutHeight, setCompositeOutHeight] = useState(1080);
   const [wallCompositeFadeMs, setWallCompositeFadeMs] = useState(900);
-  const [compositeBgMosaicOpacity, setCompositeBgMosaicOpacity] = useState(0.08);
-  const [compositeTextBrighten, setCompositeTextBrighten] = useState(0.28);
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -44,20 +42,10 @@ export function WallTextPanel({ apiUploadToken }: Props) {
     setGridRows(data.gridRows ?? 60);
     setGridTileWidthPx(data.gridTileWidthPx ?? 54);
     setGridTileHeightPx(data.gridTileHeightPx ?? 72);
-    setCompositeIntervalSec(Math.max(10, Math.round((data.compositeIntervalMs ?? 60_000) / 1000)));
+    setCompositeIntervalSec(Math.max(60, Math.round((data.compositeIntervalMs ?? 60_000) / 1000)));
     setCompositeOutWidth(data.compositeOutWidth ?? 1920);
     setCompositeOutHeight(data.compositeOutHeight ?? 1080);
     setWallCompositeFadeMs(data.wallCompositeFadeMs ?? 900);
-    setCompositeBgMosaicOpacity(
-      typeof data.compositeBgMosaicOpacity === "number" && Number.isFinite(data.compositeBgMosaicOpacity)
-        ? data.compositeBgMosaicOpacity
-        : 0.08,
-    );
-    setCompositeTextBrighten(
-      typeof data.compositeTextBrighten === "number" && Number.isFinite(data.compositeTextBrighten)
-        ? data.compositeTextBrighten
-        : 0.28,
-    );
   }, [data]);
 
   async function save() {
@@ -80,19 +68,11 @@ export function WallTextPanel({ apiUploadToken }: Props) {
       const graphicOverlayOpacity = data?.graphicOverlayOpacity ?? WALL_GRAPHIC_OVERLAY_OPACITY;
       const nextCompositeIntervalMs = Math.min(
         3_600_000,
-        Math.max(10_000, Math.round(Number(compositeIntervalSec) * 1000) || 60_000),
+        Math.max(60_000, Math.round(Number(compositeIntervalSec) * 1000) || 60_000),
       );
       const nextOutW = Math.min(3840, Math.max(640, Math.floor(Number(compositeOutWidth)) || 1920));
       const nextOutH = Math.min(2160, Math.max(360, Math.floor(Number(compositeOutHeight)) || 1080));
       const nextWallCompositeFadeMs = Math.min(5000, Math.max(200, Math.floor(Number(wallCompositeFadeMs)) || 900));
-      const nextCompositeBgMosaicOpacity = Math.min(
-        0.5,
-        Math.max(0, Number(compositeBgMosaicOpacity) || 0.08),
-      );
-      const nextCompositeTextBrighten = Math.min(
-        0.55,
-        Math.max(0, Number(compositeTextBrighten) || 0.28),
-      );
       const wallTextUrl = `/api/wall-text?token=${encodeURIComponent(apiUploadToken)}`;
       const res = await fetch(wallTextUrl, {
         method: "POST",
@@ -114,8 +94,8 @@ export function WallTextPanel({ apiUploadToken }: Props) {
           compositeOutWidth: nextOutW,
           compositeOutHeight: nextOutH,
           wallCompositeFadeMs: nextWallCompositeFadeMs,
-          compositeBgMosaicOpacity: nextCompositeBgMosaicOpacity,
-          compositeTextBrighten: nextCompositeTextBrighten,
+          compositeBgMosaicOpacity: data?.compositeBgMosaicOpacity ?? 0.08,
+          compositeTextBrighten: data?.compositeTextBrighten ?? 0.28,
         } satisfies WallTextPayload),
       });
       const body = (await res.json().catch(() => ({}))) as WallTextPayload & { error?: string };
@@ -208,17 +188,18 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         Ảnh tường ghép (server, ~16:9)
       </div>
       <p className="text-xs text-zinc-500">
-        Server ghép lưới full khung rồi <strong>mask chữ</strong> (câu đầu trong danh sách bên dưới): trong chữ lưới rõ, ngoài chữ lưới mờ trên nền tối (kiểu mosaic mẫu). Lưới nền vẫn theo <strong>số ô + kích thước ô</strong> ở trên. Độ mờ trong chữ dùng{" "}
-        <strong>watermark — độ mờ</strong> trên trang upload; ghost nền và độ sáng chữ chỉnh hai số bên dưới. Nếu lỗi mask, server fallback overlay PNG A. Tải ảnh qua{" "}
-        <code className="text-zinc-400">/api/wall-composite/image</code> (file{" "}
-        <code className="text-zinc-400">public/generated/</code>). Trang tường khi có ảnh ghép sẽ hiển thị ảnh đó (mờ dần khi đổi phiên bản).
+        Server ghép <strong>lưới ảnh</strong> (tỷ lệ ~16:9, kích thước pixel bên dưới), thiếu ảnh thì <strong>lặp lại</strong> theo thứ tự. Sau đó đè{" "}
+        <code className="text-zinc-400">public/wall-overlays/nen.png</code> (opacity 65%), rồi{" "}
+        <code className="text-zinc-400">chu.png</code> căn giữa (50%). Cuối cùng vẫn đè <strong>ảnh A</strong> với blend và độ mờ đã chỉnh ở panel watermark. Mỗi lần tạo xong chỉ giữ một file{" "}
+        <code className="text-zinc-400">wall-composite.jpg</code> (ảnh cũ bị thay). Tải qua{" "}
+        <code className="text-zinc-400">/api/wall-composite/image</code>.
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs text-zinc-400">
-          <span>Chu kỳ tạo lại ảnh ghép (giây, 10–3600)</span>
+          <span>Chu kỳ tạo lại ảnh ghép (giây, 60–3600)</span>
           <input
             type="number"
-            min={10}
+            min={60}
             max={3600}
             step={1}
             value={Number.isFinite(compositeIntervalSec) ? compositeIntervalSec : 60}
@@ -235,30 +216,6 @@ export function WallTextPanel({ apiUploadToken }: Props) {
             step={50}
             value={Number.isFinite(wallCompositeFadeMs) ? wallCompositeFadeMs : 900}
             onChange={(e) => setWallCompositeFadeMs(Number(e.target.value))}
-            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-zinc-400">
-          <span>Độ lưới ghost nền ngoài chữ (0–0.5)</span>
-          <input
-            type="number"
-            min={0}
-            max={0.5}
-            step={0.01}
-            value={Number.isFinite(compositeBgMosaicOpacity) ? compositeBgMosaicOpacity : 0.08}
-            onChange={(e) => setCompositeBgMosaicOpacity(Number(e.target.value))}
-            className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-zinc-400">
-          <span>Độ sáng chữ trong mask (0–0.55)</span>
-          <input
-            type="number"
-            min={0}
-            max={0.55}
-            step={0.01}
-            value={Number.isFinite(compositeTextBrighten) ? compositeTextBrighten : 0.28}
-            onChange={(e) => setCompositeTextBrighten(Number(e.target.value))}
             className="max-w-[12rem] rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
           />
         </label>
