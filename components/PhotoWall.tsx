@@ -81,10 +81,31 @@ export function PhotoWall() {
   const wallpaperUrl =
     typeof data?.wallpaperUrl === "string" && data.wallpaperUrl.length > 0 ? data.wallpaperUrl : null;
 
+  const pool = useMemo(() => {
+    if (Array.isArray(data?.images) && data.images.length > 0) {
+      lastGoodPoolRef.current = data.images;
+      return data.images;
+    }
+    if (lastGoodPoolRef.current && lastGoodPoolRef.current.length > 0) {
+      return lastGoodPoolRef.current;
+    }
+    return DEFAULT_IMAGE_URLS;
+  }, [data?.images]);
+
+  /** Có ảnh upload local — không hiện ảnh ghép server (job ghép có thể đã tắt, file ghép vẫn cũ). */
+  const hasLocalUploads = useMemo(
+    () => pool.some((u) => typeof u === "string" && u.startsWith("/uploads/")),
+    [pool],
+  );
+
   const compositeReady = Boolean(wallComposite?.ready && wallComposite.version > 0);
   const compositeOutOfSync = Boolean(wallComposite?.compositeOutOfSync);
   const showServerComposite =
-    !wallpaperUrl && compositeReady && wallComposite != null && !compositeOutOfSync;
+    !wallpaperUrl &&
+    !hasLocalUploads &&
+    compositeReady &&
+    wallComposite != null &&
+    !compositeOutOfSync;
   const compositeFadeMs = wallCfg?.wallCompositeFadeMs ?? 900;
 
   const graphicBlendMode = useMemo(() => {
@@ -98,17 +119,6 @@ export function PhotoWall() {
   const graphicOverlayOpacity = useMemo(() => {
     return wallCfg?.graphicOverlayOpacity ?? WALL_GRAPHIC_OVERLAY_OPACITY;
   }, [wallCfg?.graphicOverlayOpacity]);
-
-  const pool = useMemo(() => {
-    if (Array.isArray(data?.images) && data.images.length > 0) {
-      lastGoodPoolRef.current = data.images;
-      return data.images;
-    }
-    if (lastGoodPoolRef.current && lastGoodPoolRef.current.length > 0) {
-      return lastGoodPoolRef.current;
-    }
-    return DEFAULT_IMAGE_URLS;
-  }, [data?.images]);
 
   const tileW = wallCfg?.gridTileWidthPx ?? STRIP_TILE_W;
   const tileH = wallCfg?.gridTileHeightPx ?? STRIP_TILE_H;
