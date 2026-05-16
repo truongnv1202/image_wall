@@ -24,9 +24,9 @@ export type WallTextPayload = {
   /** Kích thước mỗi ô lưới trên tường (px) — mặc định 54×72 (3:4); tối thiểu 6×8. */
   gridTileWidthPx: number;
   gridTileHeightPx: number;
-  /** `mix-blend-mode` cho lớp phủ PNG (dự phòng / tương thích cấu hình). */
+  /** `mix-blend-mode` CSS cho lớp phủ A trên `/wall` (trên lưới ảnh). */
   graphicBlendMode: WallGraphicBlendMode;
-  /** Lưu trong JSON; độ mờ overlay PNG chủ yếu từ alpha file khi hiển thị. */
+  /** Opacity toàn lớp A (0–1), nhân cùng alpha trong PNG. */
   graphicOverlayOpacity: number;
   /** `mix-blend-mode` CSS cho lớp phủ B trên `/wall` (trên phủ A). */
   overlayBBlendMode: WallGraphicBlendMode;

@@ -324,7 +324,11 @@ export function PhotoWall() {
               alt=""
               width={overlayMeta.width && overlayMeta.height ? overlayMeta.width : undefined}
               height={overlayMeta.width && overlayMeta.height ? overlayMeta.height : undefined}
-              className="h-full w-full object-contain object-center opacity-100"
+              className="h-full w-full object-contain object-center"
+              style={{
+                mixBlendMode: wallCfg?.graphicBlendMode ?? "normal",
+                opacity: wallCfg?.graphicOverlayOpacity ?? 1,
+              }}
               decoding="async"
               draggable={false}
             />
