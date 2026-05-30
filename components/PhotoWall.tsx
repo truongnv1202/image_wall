@@ -384,6 +384,7 @@ export function PhotoWall() {
                 className={`h-full w-full ${
                   hero.phase === "popup" ? "object-contain" : "object-cover"
                 }`}
+                style={hero.phase === "popup" ? { imageRendering: "auto" } : undefined}
                 decoding="async"
                 fetchPriority="high"
                 onError={() => {
