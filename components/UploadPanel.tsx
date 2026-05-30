@@ -11,6 +11,7 @@ type UploadPanelProps = {
 type UploadJson = {
   error?: string;
   url?: string;
+  popupUrl?: string;
   images?: string[];
 };
 
@@ -75,12 +76,15 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
         return;
       }
       const url = data.url ?? "";
+      const popupUrl = data.popupUrl ?? "";
       const n = Array.isArray(data.images) ? data.images.length : null;
       setHint({
         kind: "ok",
         text:
-          url && n != null
-            ? `Đã upload ${url} — ${n} URL trong pool.`
+          url && popupUrl && n != null
+            ? `Đã upload ${url} — popup 9:16 ${popupUrl} — ${n} URL trong pool.`
+            : url && n != null
+              ? `Đã upload ${url} — ${n} URL trong pool.`
             : url
               ? `Đã upload ${url}.`
               : "Upload thành công.",

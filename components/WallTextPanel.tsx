@@ -196,7 +196,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         Lớp phủ A trên <code className="text-zinc-500">/wall</code>
       </div>
       <p className="text-xs text-zinc-500">
-        Blend và độ mờ áp dụng lên <code className="text-zinc-400">wall-composite-A.png</code> (trên lưới ảnh). Alpha trong PNG vẫn có hiệu lực; opacity chỉnh thêm hệ số toàn lớp.
+        Blend và độ mờ chỉ áp vùng foreground; <strong>nền + shadow</strong> trong PNG (alpha thấp) giữ <code className="text-zinc-400">normal</code> và opacity đầy đủ.
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs text-zinc-400">
@@ -232,7 +232,7 @@ export function WallTextPanel({ apiUploadToken }: Props) {
         Lớp phủ B trên <code className="text-zinc-500">/wall</code>
       </div>
       <p className="text-xs text-zinc-500">
-        Blend và độ mờ áp dụng lên <code className="text-zinc-400">wall-composite-B.png</code> (trên lớp A). Alpha trong PNG vẫn có hiệu lực; opacity chỉnh thêm hệ số toàn lớp.
+        Giống lớp A: nền/shadow giữ nguyên; blend/opacity chỉ trên phần đục hơn trong file PNG.
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs text-zinc-400">

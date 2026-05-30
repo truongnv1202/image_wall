@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
+import { WallOverlayLayer } from "@/components/WallOverlayLayer";
 import type { ImagesPayload } from "@/lib/types";
 import type { WallTextPayload } from "@/lib/wallTextStore";
 import { HERO_FLY_MS, HERO_POPUP_MS, GRID_SHUFFLE_INTERVAL_MS, STRIP_GAP_PX, STRIP_TILE_H, STRIP_TILE_W } from "@/lib/wallStripConstants";
@@ -35,7 +36,8 @@ const fetcherOverlayMeta = (url: string) =>
     return r.json() as Promise<WallOverlayMeta>;
   });
 
-type HeroState = { url: string; phase: "popup" | "fly" } | null;
+type HeroItem = { url: string; fallbackUrl?: string };
+type HeroState = (HeroItem & { phase: "popup" | "fly" }) | null;
 
 const SHUFFLE_ANIM_CLASSES = [
   "wall-grid-shuffle--pop",
@@ -73,11 +75,20 @@ function countTracks(axisPx: number, cellPx: number, gapPx: number): number {
   return Math.ceil((axisPx + gapPx) / step);
 }
 
+function popupUrlForUpload(url: string): string {
+  return url.replace(/(\.[^.\\/]+)$/i, "-popup$1");
+}
+
+function heroItemForUpload(url: string): HeroItem {
+  const popupUrl = popupUrlForUpload(url);
+  return popupUrl === url ? { url } : { url: popupUrl, fallbackUrl: url };
+}
+
 export function PhotoWall() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const prevImagesSnapshotRef = useRef<string[] | null>(null);
   const lastGoodUploadPoolRef = useRef<string[] | null>(null);
-  const heroQueueRef = useRef<string[]>([]);
+  const heroQueueRef = useRef<HeroItem[]>([]);
   const [hero, setHero] = useState<HeroState>(null);
   const wallViewportRef = useRef<HTMLDivElement>(null);
   const gridShuffleAnimRef = useRef<HTMLDivElement>(null);
@@ -199,20 +210,20 @@ export function PhotoWall() {
     const prevSet = new Set(prev);
     const added = imgs.filter((u) => !prevSet.has(u) && u.startsWith("/uploads/"));
     prevImagesSnapshotRef.current = imgs.slice();
-    for (const u of added) heroQueueRef.current.push(u);
+    for (const u of added) heroQueueRef.current.push(heroItemForUpload(u));
     if (!added.length) return;
 
     setHero((h) => {
       if (h) return h;
       const next = heroQueueRef.current.shift();
-      return next ? { url: next, phase: "popup" } : null;
+      return next ? { ...next, phase: "popup" } : null;
     });
   }, [data?.images]);
 
   const finishHeroAndAdvance = useCallback(() => {
     setHero(() => {
       const n = heroQueueRef.current.shift();
-      return n ? { url: n, phase: "popup" } : null;
+      return n ? { ...n, phase: "popup" } : null;
     });
   }, []);
 
@@ -318,19 +329,12 @@ export function PhotoWall() {
             className="pointer-events-none absolute inset-0 z-[50] min-h-0 min-w-0"
             aria-hidden
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <WallOverlayLayer
               src={`/api/wall-overlay-a/image?v=${overlayMeta.version}`}
-              alt=""
               width={overlayMeta.width && overlayMeta.height ? overlayMeta.width : undefined}
               height={overlayMeta.width && overlayMeta.height ? overlayMeta.height : undefined}
-              className="h-full w-full object-contain object-center"
-              style={{
-                mixBlendMode: wallCfg?.graphicBlendMode ?? "normal",
-                opacity: wallCfg?.graphicOverlayOpacity ?? 1,
-              }}
-              decoding="async"
-              draggable={false}
+              blendMode={wallCfg?.graphicBlendMode ?? "normal"}
+              opacity={wallCfg?.graphicOverlayOpacity ?? 1}
             />
           </div>
         ) : null}
@@ -340,19 +344,12 @@ export function PhotoWall() {
             className="pointer-events-none absolute inset-0 z-[55] min-h-0 min-w-0"
             aria-hidden
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <WallOverlayLayer
               src={`/api/wall-overlay-b/image?v=${overlayBMeta.version}`}
-              alt=""
               width={overlayBMeta.width && overlayBMeta.height ? overlayBMeta.width : undefined}
               height={overlayBMeta.width && overlayBMeta.height ? overlayBMeta.height : undefined}
-              className="h-full w-full object-contain object-center"
-              style={{
-                mixBlendMode: wallCfg?.overlayBBlendMode ?? "normal",
-                opacity: wallCfg?.overlayBOpacity ?? 1,
-              }}
-              decoding="async"
-              draggable={false}
+              blendMode={wallCfg?.overlayBBlendMode ?? "normal"}
+              opacity={wallCfg?.overlayBOpacity ?? 1}
             />
           </div>
         ) : null}
@@ -389,6 +386,13 @@ export function PhotoWall() {
                 }`}
                 decoding="async"
                 fetchPriority="high"
+                onError={() => {
+                  setHero((h) =>
+                    h?.fallbackUrl && h.url !== h.fallbackUrl
+                      ? { ...h, url: h.fallbackUrl, fallbackUrl: undefined }
+                      : h,
+                  );
+                }}
               />
             </div>
           </div>

@@ -7,7 +7,7 @@ import { ensureWallUploadTileOnDisk } from "@/lib/wallUploadTile";
 
 export const runtime = "nodejs";
 const UPLOAD_NAME =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:jpe?g|png|gif|webp)$/i;
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:-popup)?\.(?:jpe?g|png|gif|webp)$/i;
 
 function contentTypeForName(filename: string): string {
   const lower = filename.toLowerCase();
@@ -65,7 +65,9 @@ export async function GET(
   }
 
   try {
-    await ensureWallUploadTileOnDisk(filePath);
+    if (!/-popup\./i.test(filename)) {
+      await ensureWallUploadTileOnDisk(filePath);
+    }
     const buf = await readFile(filePath);
     return new NextResponse(buf, {
       status: 200,

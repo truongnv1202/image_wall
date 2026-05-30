@@ -7,7 +7,7 @@ import { prependImageUrl } from "@/lib/imageStore";
 import { rejectWithoutUploadToken } from "@/lib/uploadAuth";
 import { looksLikeHeicOrHeif } from "@/lib/sniffImageFormat";
 import { normalizeUploadTokenSegment } from "@/lib/uploadPageToken";
-import { wallUploadBufferToJpeg300x400 } from "@/lib/wallUploadTile";
+import { wallUploadBufferToJpeg300x400, wallUploadBufferToPopupJpeg9x16 } from "@/lib/wallUploadTile";
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
@@ -57,8 +57,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const jpegBuf = await wallUploadBufferToJpeg300x400(input);
-    if (!jpegBuf) {
+    const [tileJpegBuf, popupJpegBuf] = await Promise.all([
+      wallUploadBufferToJpeg300x400(input),
+      wallUploadBufferToPopupJpeg9x16(input),
+    ]);
+    if (!tileJpegBuf || !popupJpegBuf) {
       return NextResponse.json(
         {
           error:
@@ -69,13 +72,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const name = `${randomUUID()}.jpg`;
-    await writeFile(path.join(uploadDir, name), jpegBuf);
+    const id = randomUUID();
+    const name = `${id}.jpg`;
+    const popupName = `${id}-popup.jpg`;
+    await Promise.all([
+      writeFile(path.join(uploadDir, name), tileJpegBuf),
+      writeFile(path.join(uploadDir, popupName), popupJpegBuf),
+    ]);
 
     const publicUrl = `/uploads/${name}`;
     const data = await prependImageUrl(publicUrl);
 
-    return NextResponse.json({ url: publicUrl, ...data });
+    return NextResponse.json({ url: publicUrl, popupUrl: `/uploads/${popupName}`, ...data });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Write failed";
     const code = err && typeof err === "object" && "code" in err ? String((err as { code?: string }).code) : "";

@@ -77,8 +77,14 @@ async function unlinkUploadsFileIfAny(publicUrl: string | null): Promise<void> {
   if (!publicUrl) return;
   const abs = uploadsAbsFromPublicUrl(publicUrl);
   if (!abs) return;
+  const popupAbs = abs.replace(/(\.[^.\\/]+)$/i, "-popup$1");
   try {
     await fs.unlink(abs);
+  } catch {
+    /* đã xóa hoặc không tồn tại */
+  }
+  try {
+    await fs.unlink(popupAbs);
   } catch {
     /* đã xóa hoặc không tồn tại */
   }
