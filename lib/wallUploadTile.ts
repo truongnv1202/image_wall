@@ -37,7 +37,7 @@ export async function wallUploadBufferToPopupJpeg9x16(input: Buffer): Promise<Bu
         position: "centre",
         kernel: sharp.kernel.lanczos3,
       })
-      .sharpen({ sigma: 0.6 })
+      .sharpen({ sigma: 0.8, m1: 1.2, m2: 0.8 })
       .jpeg({ quality: 100, chromaSubsampling: "4:4:4", mozjpeg: true })
       .toBuffer();
   } catch {

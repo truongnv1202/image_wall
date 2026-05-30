@@ -84,6 +84,11 @@ function heroItemForUpload(url: string): HeroItem {
   return popupUrl === url ? { url } : { url: popupUrl, fallbackUrl: url };
 }
 
+function heroTileUrl(hero: HeroState): string | null {
+  if (!hero) return null;
+  return hero.fallbackUrl ?? (hero.url.includes("-popup.") ? hero.url.replace("-popup.", ".") : hero.url);
+}
+
 export function PhotoWall() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const prevImagesSnapshotRef = useRef<string[] | null>(null);
@@ -237,7 +242,10 @@ export function PhotoWall() {
       return () => window.clearTimeout(t);
     }
     const t = window.setTimeout(() => {
-      setHero((h) => (h && h.phase === "popup" && h.url === url ? { ...h, phase: "fly" } : h));
+      setHero((h) => {
+        if (!h || h.phase !== "popup" || h.url !== url) return h;
+        return { ...h, url: heroTileUrl(h) ?? h.url, fallbackUrl: undefined, phase: "fly" };
+      });
     }, HERO_POPUP_MS);
     return () => window.clearTimeout(t);
   }, [hero, reducedMotion, finishHeroAndAdvance]);
