@@ -82,7 +82,7 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
         kind: "ok",
         text:
           url && popupUrl && n != null
-            ? `Đã upload ${url} — popup 9:16 ${popupUrl} — ${n} URL trong pool.`
+            ? `Đã upload ${url} — popup 3:4 ${popupUrl} — ${n} URL trong pool.`
             : url && n != null
               ? `Đã upload ${url} — ${n} URL trong pool.`
             : url

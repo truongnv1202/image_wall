@@ -7,7 +7,7 @@ import { prependImageUrl } from "@/lib/imageStore";
 import { rejectWithoutUploadToken } from "@/lib/uploadAuth";
 import { looksLikeHeicOrHeif } from "@/lib/sniffImageFormat";
 import { normalizeUploadTokenSegment } from "@/lib/uploadPageToken";
-import { wallUploadBufferToJpeg300x400, wallUploadBufferToPopupJpeg9x16 } from "@/lib/wallUploadTile";
+import { wallUploadBufferToJpeg300x400, wallUploadBufferToPopupJpeg3x4 } from "@/lib/wallUploadTile";
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
     const [tileJpegBuf, popupJpegBuf] = await Promise.all([
       wallUploadBufferToJpeg300x400(input),
-      wallUploadBufferToPopupJpeg9x16(input),
+      wallUploadBufferToPopupJpeg3x4(input),
     ]);
     if (!tileJpegBuf || !popupJpegBuf) {
       return NextResponse.json(
