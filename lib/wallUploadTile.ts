@@ -6,9 +6,9 @@ import sharp from "sharp";
 export const WALL_UPLOAD_TILE_W = 300;
 export const WALL_UPLOAD_TILE_H = 400;
 
-/** Bản popup riêng: 9:16, đủ nét cho màn hình lớn. */
-export const WALL_UPLOAD_POPUP_W = 1080;
-export const WALL_UPLOAD_POPUP_H = 1920;
+/** Bản popup riêng: 9:16, đủ nét cho màn hình lớn/HiDPI. */
+export const WALL_UPLOAD_POPUP_W = 1440;
+export const WALL_UPLOAD_POPUP_H = 2560;
 
 /**
  * Decode + EXIF rotate, crop cover căn giữa, xuất JPEG.
@@ -26,14 +26,14 @@ export async function wallUploadBufferToJpeg300x400(input: Buffer): Promise<Buff
 }
 
 /**
- * Bản hero popup: crop cover 9:16, JPEG quality cao hơn tile để tránh vỡ ảnh khi phóng lớn.
+ * Bản hero popup: crop cover 9:16, JPEG quality tối đa để tránh vỡ ảnh khi phóng lớn.
  */
 export async function wallUploadBufferToPopupJpeg9x16(input: Buffer): Promise<Buffer | null> {
   try {
     return await sharp(input)
       .rotate()
       .resize(WALL_UPLOAD_POPUP_W, WALL_UPLOAD_POPUP_H, { fit: "cover", position: "centre" })
-      .jpeg({ quality: 94, mozjpeg: true })
+      .jpeg({ quality: 100, chromaSubsampling: "4:4:4", mozjpeg: true })
       .toBuffer();
   } catch {
     return null;

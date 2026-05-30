@@ -10,7 +10,7 @@ export const STRIP_TILE_H = 72;
 export const HERO_MAX_W = 720;
 export const HERO_MAX_H = 1280;
 
-export const HERO_POPUP_MS = 3000;
+export const HERO_POPUP_MS = 20_000;
 export const HERO_FLY_MS = 1200;
 
 /** Khoảng cách giữa các ô (px). */
