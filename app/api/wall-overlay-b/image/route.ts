@@ -2,13 +2,15 @@ import { promises as fs } from "fs";
 
 import { NextResponse } from "next/server";
 
-import { resolveWallCompositeOverlayBFile } from "@/lib/wallOverlayPaths";
+import { resolveWallOverlayLayerFile } from "@/lib/wallOverlayStore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const abs = await resolveWallCompositeOverlayBFile();
+  const url = new URL(request.url);
+  const setId = url.searchParams.get("set");
+  const abs = await resolveWallOverlayLayerFile("b", setId);
   if (!abs) {
     return new NextResponse(null, { status: 404 });
   }
@@ -19,7 +21,7 @@ export async function GET(request: Request) {
       return new NextResponse(null, { status: 404 });
     }
     const st = await fs.stat(abs);
-    const v = new URL(request.url).searchParams.get("v");
+    const v = url.searchParams.get("v");
     const cacheBusted = v != null && /^\d+$/.test(v);
     return new NextResponse(buf, {
       status: 200,

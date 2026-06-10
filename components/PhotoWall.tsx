@@ -25,6 +25,7 @@ const fetcherWallText = (url: string) =>
 
 type WallOverlayMeta = {
   exists: boolean;
+  setId: string;
   version: number;
   width: number | null;
   height: number | null;
@@ -338,7 +339,7 @@ export function PhotoWall() {
             aria-hidden
           >
             <WallOverlayLayer
-              src={`/api/wall-overlay-a/image?v=${overlayMeta.version}`}
+              src={`/api/wall-overlay-a/image?set=${encodeURIComponent(overlayMeta.setId)}&v=${overlayMeta.version}`}
               width={overlayMeta.width && overlayMeta.height ? overlayMeta.width : undefined}
               height={overlayMeta.width && overlayMeta.height ? overlayMeta.height : undefined}
               blendMode={wallCfg?.graphicBlendMode ?? "normal"}
@@ -353,7 +354,7 @@ export function PhotoWall() {
             aria-hidden
           >
             <WallOverlayLayer
-              src={`/api/wall-overlay-b/image?v=${overlayBMeta.version}`}
+              src={`/api/wall-overlay-b/image?set=${encodeURIComponent(overlayBMeta.setId)}&v=${overlayBMeta.version}`}
               width={overlayBMeta.width && overlayBMeta.height ? overlayBMeta.width : undefined}
               height={overlayBMeta.width && overlayBMeta.height ? overlayBMeta.height : undefined}
               blendMode={wallCfg?.overlayBBlendMode ?? "normal"}

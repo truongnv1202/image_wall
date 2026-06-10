@@ -3,16 +3,17 @@ import { promises as fs } from "fs";
 import { NextResponse } from "next/server";
 import sharp from "sharp";
 
-import { resolveWallCompositeOverlayAFile } from "@/lib/wallOverlayPaths";
+import { activeWallOverlaySetIdForWall, resolveWallOverlayLayerFile } from "@/lib/wallOverlayStore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const abs = await resolveWallCompositeOverlayAFile();
+  const setId = await activeWallOverlaySetIdForWall();
+  const abs = await resolveWallOverlayLayerFile("a", setId);
   if (!abs) {
     return NextResponse.json(
-      { exists: false, version: 0, width: null, height: null },
+      { exists: false, setId, version: 0, width: null, height: null },
       { headers: { "Cache-Control": "no-store, max-age=0" } },
     );
   }
@@ -25,6 +26,7 @@ export async function GET() {
   return NextResponse.json(
     {
       exists: true,
+      setId,
       version: Math.floor(st.mtimeMs),
       width: w,
       height: h,

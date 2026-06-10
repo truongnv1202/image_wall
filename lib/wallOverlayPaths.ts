@@ -29,19 +29,46 @@ export function nenPngSearchPaths(): [string, string] {
 
 const OVERLAY_A_FILENAME = "wall-composite-A.png";
 const OVERLAY_B_FILENAME = "wall-composite-B.png";
+export const DEFAULT_WALL_OVERLAY_SET_ID = "default";
 
 export type WallOverlayLayer = "a" | "b";
+
+export function wallCompositeOverlayFilename(layer: WallOverlayLayer): string {
+  return layer === "b" ? OVERLAY_B_FILENAME : OVERLAY_A_FILENAME;
+}
+
+export function wallOverlaySetsRoot(): string {
+  return path.join(process.cwd(), "data", "wall-overlay-sets");
+}
+
+export function isValidWallOverlaySetId(id: string): boolean {
+  return id === DEFAULT_WALL_OVERLAY_SET_ID || /^set-[a-z0-9-]{8,80}$/i.test(id);
+}
 
 /**
  * Bản upload API ghi tại đây (thư mục `data/` luôn ghi được trong entrypoint Docker).
  * Không phụ thuộc volume RO của `public/wall-overlays`.
  */
+export function wallCompositeOverlayDataPath(
+  layer: WallOverlayLayer,
+  setId = DEFAULT_WALL_OVERLAY_SET_ID,
+): string {
+  if (!isValidWallOverlaySetId(setId)) {
+    throw new Error(`Invalid wall overlay set id: ${setId}`);
+  }
+  const filename = wallCompositeOverlayFilename(layer);
+  if (setId === DEFAULT_WALL_OVERLAY_SET_ID) {
+    return path.join(process.cwd(), "data", "wall-overlays", filename);
+  }
+  return path.join(wallOverlaySetsRoot(), setId, filename);
+}
+
 export function wallCompositeOverlayADataPath(): string {
-  return path.join(process.cwd(), "data", "wall-overlays", OVERLAY_A_FILENAME);
+  return wallCompositeOverlayDataPath("a");
 }
 
 export function wallCompositeOverlayBDataPath(): string {
-  return path.join(process.cwd(), "data", "wall-overlays", OVERLAY_B_FILENAME);
+  return wallCompositeOverlayDataPath("b");
 }
 
 /** Ưu tiên bản upload (`data/…`), sau đó `{wallOverlaysDir}/wall-composite-A.png`. */

@@ -7,10 +7,11 @@ import { rejectWithoutUploadToken } from "@/lib/uploadAuth";
 import { looksLikeHeicOrHeif } from "@/lib/sniffImageFormat";
 import { normalizeUploadTokenSegment } from "@/lib/uploadPageToken";
 import {
-  wallCompositeOverlayADataPath,
-  wallCompositeOverlayBDataPath,
+  isValidWallOverlaySetId,
+  wallCompositeOverlayDataPath,
   type WallOverlayLayer,
 } from "@/lib/wallOverlayPaths";
+import { activeWallOverlaySetId, readWallOverlaySets } from "@/lib/wallOverlayStore";
 
 const MAX_BYTES = 25 * 1024 * 1024;
 const MAX_EDGE = 8192;
@@ -45,8 +46,19 @@ function parseLayer(raw: unknown): WallOverlayLayer {
   return s === "b" ? "b" : "a";
 }
 
-function dataPathForLayer(layer: WallOverlayLayer): string {
-  return layer === "b" ? wallCompositeOverlayBDataPath() : wallCompositeOverlayADataPath();
+async function parseTargetSetId(raw: unknown): Promise<string> {
+  if (typeof raw !== "string" || raw.trim().length === 0) {
+    return activeWallOverlaySetId();
+  }
+  const id = raw.trim();
+  if (!isValidWallOverlaySetId(id)) {
+    throw new Error("Mã bộ lớp phủ không hợp lệ.");
+  }
+  const payload = await readWallOverlaySets();
+  if (!payload.sets.some((s) => s.id === id)) {
+    throw new Error("Không tìm thấy bộ lớp phủ.");
+  }
+  return id;
 }
 
 function publicNameForLayer(layer: WallOverlayLayer): string {
@@ -54,9 +66,9 @@ function publicNameForLayer(layer: WallOverlayLayer): string {
 }
 
 /**
- * Upload lớp phủ PNG: form `layer` = `a` | `b` (mặc định `a`) → `wall-composite-A.png` / `wall-composite-B.png` trong `data/wall-overlays/`.
+ * Upload lớp phủ PNG: form `layer` = `a` | `b` (mặc định `a`) vào bộ phủ active hoặc `setId`.
  * Lớp B sau khi ghi được `chmod 0666` (và thử trước khi ghi nếu file cũ tồn tại) để upload sau có thể đè.
- * DELETE `?layer=a|b&token=…` — xóa file tương ứng (idempotent nếu không còn file).
+ * DELETE `?layer=a|b&setId=...&token=…` — xóa file tương ứng (idempotent nếu không còn file).
  */
 export async function POST(request: Request) {
   try {
@@ -65,6 +77,7 @@ export async function POST(request: Request) {
     if (denied) return denied;
 
     const layer = parseLayer(form.get("layer"));
+    const setId = await parseTargetSetId(form.get("setId"));
     const file = form.get("file");
     if (!(file instanceof Blob) || file.size === 0) {
       return NextResponse.json({ error: "Missing file" }, { status: 400 });
@@ -98,7 +111,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const outAbs = dataPathForLayer(layer);
+    const outAbs = wallCompositeOverlayDataPath(layer, setId);
     await mkdir(path.dirname(outAbs), { recursive: true });
     const pngBuf = await sharp(input).png().toBuffer();
     if (layer === "b") {
@@ -112,16 +125,19 @@ export async function POST(request: Request) {
     const name = publicNameForLayer(layer);
     return NextResponse.json({
       ok: true,
+      setId,
       layer,
       file: name,
-      storage: `data/wall-overlays/${name}`,
+      storage: setId === "default" ? `data/wall-overlays/${name}` : `data/wall-overlay-sets/${setId}/${name}`,
       width: w,
       height: h,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Write failed";
+    const status =
+      message === "Mã bộ lớp phủ không hợp lệ." || message === "Không tìm thấy bộ lớp phủ." ? 400 : 500;
     console.error("[upload-wall-overlay]", err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status });
   }
 }
 
@@ -130,27 +146,26 @@ export async function DELETE(request: Request) {
     const denied = rejectWithoutUploadToken(request);
     if (denied) return denied;
 
-    let layer: WallOverlayLayer = "a";
-    try {
-      layer = parseLayer(new URL(request.url).searchParams.get("layer"));
-    } catch {
-      layer = "a";
-    }
+    const url = new URL(request.url);
+    const layer = parseLayer(url.searchParams.get("layer"));
+    const setId = await parseTargetSetId(url.searchParams.get("setId"));
 
-    const abs = dataPathForLayer(layer);
+    const abs = wallCompositeOverlayDataPath(layer, setId);
     try {
       await unlink(abs);
-      return NextResponse.json({ ok: true, layer, deleted: true });
+      return NextResponse.json({ ok: true, setId, layer, deleted: true });
     } catch (e) {
       const code = e && typeof e === "object" && "code" in e ? String((e as NodeJS.ErrnoException).code) : "";
       if (code === "ENOENT") {
-        return NextResponse.json({ ok: true, layer, deleted: false });
+        return NextResponse.json({ ok: true, setId, layer, deleted: false });
       }
       throw e;
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Delete failed";
+    const status =
+      message === "Mã bộ lớp phủ không hợp lệ." || message === "Không tìm thấy bộ lớp phủ." ? 400 : 500;
     console.error("[upload-wall-overlay] DELETE", err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status });
   }
 }
