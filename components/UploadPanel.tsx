@@ -10,9 +10,12 @@ type UploadPanelProps = {
 
 type UploadJson = {
   error?: string;
+  ok?: boolean;
   url?: string;
   popupUrl?: string;
   images?: string[];
+  deletedFiles?: number;
+  failedFiles?: number;
 };
 
 type OverlayUploadJson = {
@@ -36,6 +39,7 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
   const [overlayAFileName, setOverlayAFileName] = useState<string | null>(null);
   const [overlayBFileName, setOverlayBFileName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [cleanupBusy, setCleanupBusy] = useState(false);
   const [overlayABusy, setOverlayABusy] = useState(false);
   const [overlayBBusy, setOverlayBBusy] = useState(false);
   const [overlayADeleteBusy, setOverlayADeleteBusy] = useState(false);
@@ -95,6 +99,53 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
       setHint({ kind: "err", text: e instanceof Error ? e.message : "Lỗi mạng" });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function deleteOldUploads() {
+    const token = apiUploadToken?.trim();
+    if (!token) {
+      setHint({ kind: "err", text: "Thiếu token — chỉ dùng trang /upload/<token>." });
+      return;
+    }
+    const confirmed = window.confirm(
+      "Xóa toàn bộ ảnh đã upload khỏi tường? Thao tác này không thể hoàn tác.",
+    );
+    if (!confirmed) return;
+
+    setCleanupBusy(true);
+    setHint(null);
+    try {
+      const q = new URLSearchParams({ token });
+      const res = await fetch(`/api/images?${q}`, {
+        method: "DELETE",
+        headers: { "x-upload-token": token },
+      });
+      let data: UploadJson;
+      try {
+        data = (await res.json()) as UploadJson;
+      } catch {
+        setHint({ kind: "err", text: `HTTP ${res.status} — phản hồi không phải JSON.` });
+        return;
+      }
+      if (!res.ok) {
+        setHint({ kind: "err", text: data.error || `HTTP ${res.status}` });
+        return;
+      }
+      const deleted = data.deletedFiles ?? 0;
+      const failed = data.failedFiles ?? 0;
+      const n = Array.isArray(data.images) ? data.images.length : null;
+      setHint({
+        kind: failed > 0 ? "err" : "ok",
+        text:
+          failed > 0
+            ? `Đã xóa ${deleted} file, ${failed} file lỗi. Pool hiện còn ${n ?? "?"} URL.`
+            : `Đã xóa ${deleted} file upload cũ. Pool đã reset${n != null ? ` về ${n} URL mẫu` : ""}.`,
+      });
+    } catch (e) {
+      setHint({ kind: "err", text: e instanceof Error ? e.message : "Lỗi mạng" });
+    } finally {
+      setCleanupBusy(false);
     }
   }
 
@@ -342,11 +393,19 @@ export function UploadPanel({ apiUploadToken }: UploadPanelProps) {
           </label>
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || cleanupBusy}
             className="rounded-lg bg-emerald-800 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
             onClick={() => void submit()}
           >
             {busy ? "Đang upload…" : "Upload ảnh lên tường"}
+          </button>
+          <button
+            type="button"
+            disabled={cleanupBusy || busy}
+            className="rounded-lg border border-rose-800/70 px-3 py-2 text-xs text-rose-200 hover:bg-rose-950/40 disabled:opacity-50"
+            onClick={() => void deleteOldUploads()}
+          >
+            {cleanupBusy ? "Đang xóa…" : "Xóa ảnh cũ"}
           </button>
           <Link
             href="/wall"

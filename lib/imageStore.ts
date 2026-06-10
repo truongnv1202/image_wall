@@ -41,7 +41,14 @@ async function ensureFile(): Promise<void> {
 
 async function writePayload(payload: ImagesPayload): Promise<void> {
   await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
-  await fs.writeFile(DATA_PATH, JSON.stringify(payload, null, 2), "utf8");
+  const tmpPath = `${DATA_PATH}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    await fs.writeFile(tmpPath, JSON.stringify(payload, null, 2), "utf8");
+    await fs.rename(tmpPath, DATA_PATH);
+  } catch (e) {
+    await fs.unlink(tmpPath).catch(() => {});
+    throw e;
+  }
 }
 
 export async function readImages(): Promise<ImagesPayload> {
@@ -90,8 +97,13 @@ async function unlinkUploadsFileIfAny(publicUrl: string | null): Promise<void> {
   }
 }
 
+export type ResetImagesResult = ImagesPayload & {
+  deletedFiles: number;
+  failedFiles: number;
+};
+
 /** Xóa mọi file trong `public/uploads/`, ghi lại `images.json` chỉ còn URL mẫu (Picsum). */
-export async function resetImagesToDefaultsAndRemoveUploads(): Promise<ImagesPayload> {
+export async function resetImagesToDefaultsAndRemoveUploads(): Promise<ResetImagesResult> {
   const prev = prependChain;
   let done!: () => void;
   prependChain = new Promise<void>((resolve) => {
@@ -102,16 +114,27 @@ export async function resetImagesToDefaultsAndRemoveUploads(): Promise<ImagesPay
   });
   try {
     const uploadDir = path.join(process.cwd(), "public", "uploads");
+    let deletedFiles = 0;
+    let failedFiles = 0;
     try {
       const names = await fs.readdir(uploadDir);
-      await Promise.all(names.map((n) => fs.unlink(path.join(uploadDir, n)).catch(() => {})));
+      await Promise.all(
+        names.map(async (n) => {
+          try {
+            await fs.unlink(path.join(uploadDir, n));
+            deletedFiles += 1;
+          } catch {
+            failedFiles += 1;
+          }
+        }),
+      );
     } catch {
       await fs.mkdir(uploadDir, { recursive: true });
     }
 
     const next: ImagesPayload = { images: [...DEFAULT_IMAGE_URLS], wallpaperUrl: null };
     await writePayload(next);
-    return next;
+    return { ...next, deletedFiles, failedFiles };
   } finally {
     done();
   }
