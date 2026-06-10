@@ -35,7 +35,7 @@ async function ensureFile(): Promise<void> {
   } catch {
     await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
     const initial: ImagesPayload = { images: [...DEFAULT_IMAGE_URLS], wallpaperUrl: null };
-    await fs.writeFile(DATA_PATH, JSON.stringify(initial, null, 2), "utf8");
+    await writePayload(initial);
   }
 }
 
